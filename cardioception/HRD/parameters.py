@@ -9,7 +9,7 @@ import pandas as pd
 import pkg_resources  # type: ignore
 import serial
 from systole import serialSim
-from systole.recording import Oximeter
+from systole.recording import Oximeter, Nonin3231USB
 
 from cardioception.HRD.languages import danish, danish_children, english, french
 
@@ -382,14 +382,14 @@ def getParameters(
     parameters["setup"] = setup
     if setup == "behavioral":
         # PPG recording
-        port = serial.Serial(serialPort)
-        parameters["oxiTask"] = Oximeter(
-            serial=port, sfreq=75, add_channels=1, **systole_kw
-        )
-        parameters["oxiTask"].setup().read(duration=1)
+        port = serial.Serial(serialPort, timeout=2)
+        # parameters["oxiTask"] = Oximeter(
+        #     serial=port, sfreq=75, add_channels=1, **systole_kw
+        # )
+        # parameters["oxiTask"].setup().read(duration=1)
         
-        # # for Nonin 3231 USB
-        # parameters['oxiTask'] = Nonin3231USB(serial=port, add_channels=1).setup().read(1)
+        # for Nonin 3231 USB
+        parameters['oxiTask'] = Nonin3231USB(serial=port, add_channels=1).setup().read(1)
 
     elif setup == "test":
         # Use pre-recorded pulse time series for testing

@@ -436,21 +436,21 @@ def trial(
             # You can adapt these line to work with a different setup provided that
             # it can measure and create the new variable `bpm` (the average beats per
             # minute over the 5 seconds of recording).
-            signal = (
-                parameters["oxiTask"].read(duration=5.0).recording[-75 * 6 :]  # noqa
-            )
-            signal, peaks = ppg_peaks(signal, sfreq=75, new_sfreq=1000, clipping=True)
-
-            # Get actual heart Rate
-            # Only use the last 5 seconds of the recording
-            bpm = 60000 / np.diff(np.where(peaks[-5000:])[0])
-
-            
-            # # for Nonin3231USB
+            # signal = (
+            #     parameters["oxiTask"].read(duration=5.0).recording[-75 * 6 :]  # noqa
+            # )
+            # signal, peaks = ppg_peaks(signal, sfreq=75, new_sfreq=1000, clipping=True)
+            #
+            # # Get actual heart Rate
             # # Only use the last 5 seconds of the recording
-            # bpm =  pd.Series(parameters["oxiTask"].read(duration=5.0).bpm)[-5:]
-            # # use bpm as signal, Nonin3231USB gives no raw signal
-            # signal = bpm
+            # bpm = 60000 / np.diff(np.where(peaks[-5000:])[0])
+
+
+            # for Nonin3231USB
+            # Only use the last 5 seconds of the recording
+            bpm = pd.Series(parameters["oxiTask"].read(duration=5.0).bpm)[-5:]
+            # use bpm as signal, Nonin3231USB gives no raw signal
+            signal = bpm
 
 
             print(f"... bpm: {[round(i) for i in bpm]}")
