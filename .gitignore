@@ -13,3 +13,4 @@ docs/source/api
 docs/build
 docs/auto_examples
 .Rproj.user
+conda-envs
