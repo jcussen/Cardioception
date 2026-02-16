@@ -9,7 +9,6 @@ from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
-import pkg_resources  # type: ignore
 
 
 def cumulative_normal(x, alpha, beta):
@@ -258,15 +257,29 @@ def report(
         template = "HeartRateDiscrimination.ipynb"
     elif task == "HBC":
         template = "HeartBeatCounting.ipynb"
+    else:
+        raise ValueError("task should be 'HRD' or 'HBC'")
+
+    template_path = Path(__file__).resolve().parent / "notebooks" / template
 
     execute_notebook(
-        pkg_resources.resource_filename("cardioception.notebooks", template),
+        str(template_path),
         temp_notebook,
         parameters=dict(resultPath=str(result_path), reportPath=str(report_path)),
     )
-    command = (
-        "jupyter nbconvert --to html --execute "
-        + f"--TemplateExporter.exclude_input=True {temp_notebook} --output {htmlreport}"
-    )
-    subprocess.call(command, shell=True)
-    os.remove(temp_notebook)
+    command = [
+        "jupyter",
+        "nbconvert",
+        "--to",
+        "html",
+        "--execute",
+        "--TemplateExporter.exclude_input=True",
+        str(temp_notebook),
+        "--output",
+        htmlreport.name,
+        "--output-dir",
+        str(htmlreport.parent),
+    ]
+    subprocess.run(command, check=True)
+    if os.path.exists(temp_notebook):
+        os.remove(temp_notebook)

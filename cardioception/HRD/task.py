@@ -3,12 +3,15 @@
 
 import pickle
 import time
+from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
-import pkg_resources  # type: ignore
-from systole.detection import ppg_peaks
+
+from cardioception.input import digit_key_list, parse_digit_key
+
+SOUNDS_DIR = Path(__file__).resolve().parent / "Sounds"
 
 
 def run(
@@ -514,9 +517,7 @@ def trial(
         listenBPM = np.random.choice(np.arange(40, 100, 0.5))
 
         # Play the corresponding beat file
-        listenFile = pkg_resources.resource_filename(
-            "cardioception.HRD", f"Sounds/{listenBPM}.wav"
-        )
+        listenFile = str(SOUNDS_DIR / f"{listenBPM}.wav")
         print(f"...loading file (Listen): {listenFile}")
 
         # Play selected BPM frequency
@@ -551,9 +552,7 @@ def trial(
         responseBPM = 199.0
     else:
         responseBPM = listenBPM + alpha
-    responseFile = pkg_resources.resource_filename(
-        "cardioception.HRD", f"Sounds/{responseBPM}.wav"
-    )
+    responseFile = str(SOUNDS_DIR / f"{responseBPM}.wav")
     print(f"...loading file (Response): {responseFile}")
 
     # Play selected BPM frequency
@@ -784,24 +783,15 @@ def tutorial(parameters: dict):
 
     # Record number
     nFinger = ""
+    finger_key_list = digit_key_list(1, 5)
     while True:
         # Record new key
-        key = event.waitKeys(
-            keyList=[
-                "1",
-                "2",
-                "3",
-                "4",
-                "5",
-                "num_1",
-                "num_2",
-                "num_3",
-                "num_4",
-                "num_5",
-            ]
-        )
+        key = event.waitKeys(keyList=finger_key_list)
         if key:
-            nFinger += [s for s in key[0] if s.isdigit()][0]
+            digit = parse_digit_key(key[0])
+            if digit is None:
+                continue
+            nFinger += digit
 
             # Save the finger number in the task parameters dictionary
             parameters["nFinger"] = nFinger
@@ -1092,6 +1082,12 @@ def responseDecision(
                     core.wait(2)
 
     if parameters["device"] == "mouse":
+        button_to_idx = {"left": 0, "middle": 1, "right": 2}
+        mouse_response_buttons = parameters.get(
+            "mouse_response_buttons", {"Less": "left", "More": "right"}
+        )
+        less_button_idx = button_to_idx[mouse_response_buttons["Less"]]
+        more_button_idx = button_to_idx[mouse_response_buttons["More"]]
 
         # Initialise response feedback
         slower = visual.TextStim(
@@ -1121,8 +1117,8 @@ def responseDecision(
             buttons, decisionRT = parameters["myMouse"].getPressed(getTime=True)
             trialdur = clock.getTime()
             parameters["oxiTask"].readInWaiting()
-            if buttons == [1, 0, 0]:
-                decisionRT = decisionRT[0]
+            if buttons[less_button_idx]:
+                decisionRT = decisionRT[less_button_idx]
                 decision, respProvided = "Less", True
                 slower.color = "blue"
                 slower.draw()
@@ -1133,8 +1129,8 @@ def responseDecision(
                 pauseFeedback = 0.5 if (remain > 0.5) else remain
                 core.wait(pauseFeedback)
                 break
-            elif buttons == [0, 0, 1]:
-                decisionRT = decisionRT[-1]
+            elif buttons[more_button_idx]:
+                decisionRT = decisionRT[more_button_idx]
                 decision, respProvided = "More", True
                 faster.color = "blue"
                 faster.draw()
@@ -1212,27 +1208,31 @@ def confidenceRatingTask(
 
     """
 
-    from psychopy import core, visual
+    from psychopy import core, event, visual
 
     print("...starting confidence rating.")
 
     # Initialise default values
     confidence, confidenceRT = None, None
+    ratingProvided = False
 
     if parameters["device"] == "keyboard":
 
         markerStart = np.random.choice(
-            np.arange(parameters["confScale"][0], parameters["confScale"][1])
+            np.arange(parameters["confScale"][0], parameters["confScale"][1] + 1)
         )
-        ratingScale = visual.RatingScale(
-            parameters["win"],
-            low=parameters["confScale"][0],
-            high=parameters["confScale"][1],
-            noMouse=True,
+        slider = visual.Slider(
+            win=parameters["win"],
+            pos=(0, -0.2),
+            size=(0.7, 0.1),
+            ticks=np.arange(parameters["confScale"][0], parameters["confScale"][1] + 1),
             labels=parameters["labelsRating"],
-            acceptKeys="down",
-            markerStart=markerStart,
+            granularity=1,
+            style="rating",
+            color="LightGray",
+            labelHeight=0.1 * 0.6,
         )
+        slider.markerPos = markerStart
 
         message = visual.TextStim(
             parameters["win"],
@@ -1240,21 +1240,41 @@ def confidenceRatingTask(
             text=parameters["texts"]["Confidence"],
         )
 
-        # Wait for response
-        ratingProvided = False
+        event.clearEvents(eventType="keyboard")
         clock = core.Clock()
         while clock.getTime() < parameters["maxRatingTime"]:
-            if not ratingScale.noResponse:
-                ratingScale.markerColor = (0, 0, 1)
-                if clock.getTime() > parameters["minRatingTime"]:
+            keys = event.getKeys(keyList=["left", "right", "down", "escape"])
+            for key in keys:
+                if key == "escape":
+                    print("User abort")
+                    parameters["win"].close()
+                    core.quit()
+                elif key == "left":
+                    slider.markerPos = max(
+                        parameters["confScale"][0], slider.markerPos - 1
+                    )
+                elif key == "right":
+                    slider.markerPos = min(
+                        parameters["confScale"][1], slider.markerPos + 1
+                    )
+                elif (key == "down") and (clock.getTime() > parameters["minRatingTime"]):
                     ratingProvided = True
+                    confidence = slider.markerPos
+                    confidenceRT = clock.getTime()
+                    slider.marker.color = "green"
                     break
-            ratingScale.draw()
+            slider.draw()
             message.draw()
             parameters["win"].flip()
+            if ratingProvided:
+                core.wait(0.2)
+                break
 
-        confidence = ratingScale.getRating()
-        confidenceRT = ratingScale.getRT()
+        if ratingProvided:
+            print(
+                f"... Confidence level: {confidence}"
+                + f" with response time {round(confidenceRT, 2)} seconds"
+            )
 
     elif parameters["device"] == "mouse":
 
@@ -1351,6 +1371,9 @@ def confidenceRatingTask(
             slider.draw()
             message.draw()
             parameters["win"].flip()
+    else:
+        raise ValueError("device should be 'keyboard' or 'mouse'")
+
     ratingEndTrigger = time.time()
     parameters["win"].flip()
 

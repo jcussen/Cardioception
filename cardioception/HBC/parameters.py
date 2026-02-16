@@ -2,11 +2,11 @@
 # Maintained by the Embodied Computation Group, Aarhus University
 
 import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
-import pkg_resources  # type: ignore
 import serial
 from systole import serialSim
 from systole.recording import Oximeter
@@ -21,7 +21,7 @@ def getParameters(
     screenNb: int = 0,
     fullscr: bool = True,
     resultPath: Optional[str] = None,
-    systole_kw: dict = {},
+    systole_kw: Optional[dict] = None,
 ) -> Dict:
     """Create Heartbeat Counting task parameters.
 
@@ -109,6 +109,13 @@ def getParameters(
     """
     from psychopy import sound, visual
 
+    if systole_kw is None:
+        systole_kw = {}
+
+    module_dir = Path(__file__).resolve().parent
+    sounds_dir = module_dir / "Sounds"
+    images_dir = module_dir / "Images"
+
     parameters: Dict[str, Any] = {}
     parameters["restPeriod"] = True
     parameters["restLength"] = 30
@@ -175,11 +182,11 @@ def getParameters(
 
     # Set note played at trial start
     parameters["noteStart"] = sound.Sound(
-        pkg_resources.resource_filename("cardioception.HBC", "Sounds/start.wav")
+        str(sounds_dir / "start.wav")
     )
 
     parameters["noteStop"] = sound.Sound(
-        pkg_resources.resource_filename("cardioception.HBC", "Sounds/stop.wav")
+        str(sounds_dir / "stop.wav")
     )
 
     # Open window
@@ -191,14 +198,14 @@ def getParameters(
     parameters["restLogo"] = visual.ImageStim(
         win=parameters["win"],
         units="height",
-        image=pkg_resources.resource_filename(__name__, "Images/rest.png"),
+        image=str(images_dir / "rest.png"),
         pos=(0.0, -0.2),
     )
     parameters["restLogo"].size *= 0.15
     parameters["heartLogo"] = visual.ImageStim(
         win=parameters["win"],
         units="height",
-        image=pkg_resources.resource_filename(__name__, "Images/heartbeat.png"),
+        image=str(images_dir / "heartbeat.png"),
         pos=(0.0, -0.2),
     )
     parameters["heartLogo"].size *= 0.05

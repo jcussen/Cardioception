@@ -6,6 +6,18 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from cardioception.input import digit_key_list, parse_digit_key
+
+
+def _start_key_list(parameters: dict) -> list:
+    return [parameters["startKey"]]
+
+
+def _fire_trigger(parameters: dict, name: str) -> None:
+    trigger = parameters["triggers"].get(name)
+    if callable(trigger):
+        trigger()
+
 
 def run(
     parameters: dict,
@@ -39,13 +51,13 @@ def run(
         range(0, len(parameters["conditions"])),
     ):
 
-        parameters["triggers"]["trialStart"]  # Send trigger or None
+        _fire_trigger(parameters, "trialStart")
 
         nCount, confidence, confidenceRT = trial(
             condition, duration, nTrial, parameters
         )
 
-        parameters["triggers"]["trialStop"]  # Send trigger or None
+        _fire_trigger(parameters, "trialStop")
 
         # Store results in a DataFrame
         parameters["results_df"] = pd.concat(
@@ -140,7 +152,7 @@ def trial(
     )
     messageStart.draw()
     parameters["win"].flip()
-    event.waitKeys(keyList=parameters["startKey"])
+    event.waitKeys(keyList=_start_key_list(parameters))
     parameters["win"].flip()
 
     parameters["oxiTask"].setup()
@@ -177,7 +189,7 @@ def trial(
         # Add event marker
         parameters["oxiTask"].channels["Channel_0"][-1] = 1
         parameters["noteStart"].play()
-        parameters["triggers"]["listeningStart"]
+        _fire_trigger(parameters, "listeningStart")
         core.wait(1)
 
     # Record for a desired time length
@@ -189,7 +201,7 @@ def trial(
         parameters["oxiTask"].readInWaiting()
         parameters["oxiTask"].channels["Channel_0"][-1] = 2
         parameters["noteStop"].play()
-        parameters["triggers"]["listeningStop"]
+        _fire_trigger(parameters, "listeningStop")
         core.wait(3)
         parameters["oxiTask"].readInWaiting()
 
@@ -220,39 +232,23 @@ def trial(
         messageCount.draw()
         parameters["win"].flip()
 
-        parameters["triggers"]["decisionStart"]  # Send trigger or None
+        _fire_trigger(parameters, "decisionStart")
 
         nCounts = ""
+        count_key_list = [
+            "escape",
+            "backspace",
+            "return",
+            "enter",
+            "num_enter",
+            "numpad_enter",
+            "kp_enter",
+            *digit_key_list(0, 9),
+        ]
         while True:
 
             # Record new key
-            key = event.waitKeys(
-                keyList=[
-                    "escape",
-                    "backspace",
-                    "return",
-                    "1",
-                    "2",
-                    "3",
-                    "4",
-                    "5",
-                    "6",
-                    "7",
-                    "8",
-                    "9",
-                    "0",
-                    "num_1",
-                    "num_2",
-                    "num_3",
-                    "num_4",
-                    "num_5",
-                    "num_6",
-                    "num_7",
-                    "num_8",
-                    "num_9",
-                    "num_0",
-                ]
-            )
+            key = event.waitKeys(keyList=count_key_list)
 
             if key[0] == "escape":
                 keys = event.getKeys()
@@ -263,7 +259,7 @@ def trial(
             if key[0] == "backspace":
                 if nCounts:
                     nCounts = nCounts[:-1]
-            elif key[0] == "return":
+            elif key[0] in {"return", "enter", "num_enter", "numpad_enter", "kp_enter"}:
                 if not all(char.isdigit() for char in nCounts):
                     messageError = visual.TextStim(
                         parameters["win"],
@@ -289,7 +285,9 @@ def trial(
 
             else:
                 if key:
-                    nCounts += [s for s in key[0] if s.isdigit()][0]
+                    digit = parse_digit_key(key[0])
+                    if digit is not None:
+                        nCounts += digit
 
             # Show the text on the screen
             recordedText = visual.TextStim(
@@ -299,37 +297,66 @@ def trial(
             messageCount.draw()
             parameters["win"].flip()
 
-        parameters["triggers"]["decisionStop"]  # Send trigger or None
+        _fire_trigger(parameters, "decisionStop")
 
         ##############
         # Rating scale
         ##############
         if parameters["rating"] is True:
             markerStart = np.random.choice(
-                np.arange(parameters["confScale"][0], parameters["confScale"][1])
+                np.arange(parameters["confScale"][0], parameters["confScale"][1] + 1)
             )
-            ratingScale = visual.RatingScale(
-                parameters["win"],
-                low=parameters["confScale"][0],
-                high=parameters["confScale"][1],
-                noMouse=True,
+            slider = visual.Slider(
+                win=parameters["win"],
+                pos=(0, -0.2),
+                size=(0.7, 0.1),
+                ticks=np.arange(parameters["confScale"][0], parameters["confScale"][1] + 1),
                 labels=parameters["labelsRating"],
-                acceptKeys="down",
-                markerStart=markerStart,
+                granularity=1,
+                style="rating",
+                color="LightGray",
+                labelHeight=0.1 * 0.6,
             )
+            slider.markerPos = markerStart
             message = visual.TextStim(
                 parameters["win"],
                 text=parameters["texts"]["confidence"],
                 height=parameters["textSize"],
             )
-            parameters["triggers"]["confidenceStart"]
-            while ratingScale.noResponse:
+
+            _fire_trigger(parameters, "confidenceStart")
+            event.clearEvents(eventType="keyboard")
+            rating_clock = core.Clock()
+            while True:
+                keys = event.getKeys(keyList=["left", "right", "down", "escape"])
+                for key in keys:
+                    if key == "escape":
+                        print("User abort")
+                        parameters["win"].close()
+                        core.quit()
+                    elif key == "left":
+                        slider.markerPos = max(
+                            parameters["confScale"][0], slider.markerPos - 1
+                        )
+                    elif key == "right":
+                        slider.markerPos = min(
+                            parameters["confScale"][1], slider.markerPos + 1
+                        )
+                    elif key == "down":
+                        confidence = slider.markerPos
+                        confidenceRT = rating_clock.getTime()
+                        break
+                if confidence is not None:
+                    slider.marker.color = "green"
+                    slider.draw()
+                    message.draw()
+                    parameters["win"].flip()
+                    core.wait(0.2)
+                    break
                 message.draw()
-                ratingScale.draw()
+                slider.draw()
                 parameters["win"].flip()
-            confidence = ratingScale.getRating()
-            confidenceRT = ratingScale.getRT()
-            parameters["triggers"]["confidenceStop"]
+            _fire_trigger(parameters, "confidenceStop")
 
     finalCount = int(nCounts) if nCounts else None
 
@@ -364,7 +391,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-    event.waitKeys(keyList=parameters["startKey"])
+    event.waitKeys(keyList=_start_key_list(parameters))
 
     # Tutorial 2
     messageStart = visual.TextStim(
@@ -383,7 +410,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-    event.waitKeys(keyList=parameters["startKey"])
+    event.waitKeys(keyList=_start_key_list(parameters))
 
     # Tutorial 3
     if parameters["taskVersion"] == "Shandry":
@@ -404,7 +431,7 @@ def tutorial(parameters: dict):
         )
         press.draw()
         parameters["win"].flip()
-        event.waitKeys(keyList=parameters["startKey"])
+        event.waitKeys(keyList=_start_key_list(parameters))
 
     # Tutorial 4
     messageStart = visual.TextStim(
@@ -422,7 +449,7 @@ def tutorial(parameters: dict):
     press.draw()
     parameters["win"].flip()
 
-    event.waitKeys(keyList=parameters["startKey"])
+    event.waitKeys(keyList=_start_key_list(parameters))
 
     # Tutorial 5
     messageStart = visual.TextStim(
@@ -439,7 +466,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-    event.waitKeys(keyList=parameters["startKey"])
+    event.waitKeys(keyList=_start_key_list(parameters))
 
     # Tutorial 6
     messageStart = visual.TextStim(
@@ -456,7 +483,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-    event.waitKeys(keyList=parameters["startKey"])
+    event.waitKeys(keyList=_start_key_list(parameters))
 
     # Tutorial 7
     messageStart = visual.TextStim(
@@ -473,7 +500,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-    event.waitKeys(keyList=parameters["startKey"])
+    event.waitKeys(keyList=_start_key_list(parameters))
 
     # Tutorial 8
     messageStart = visual.TextStim(
@@ -490,7 +517,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-    event.waitKeys(keyList=parameters["startKey"])
+    event.waitKeys(keyList=_start_key_list(parameters))
 
     # Practice trial
     _ = trial("Count", 15, 0, parameters)
@@ -510,7 +537,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-    event.waitKeys(keyList=parameters["startKey"])
+    event.waitKeys(keyList=_start_key_list(parameters))
 
 
 def rest(parameters: dict, duration: float = 300.0):
