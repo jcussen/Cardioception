@@ -17,6 +17,16 @@ fi
 echo "Creating base conda environment..."
 conda env create --prefix "$ENV_PREFIX" -f "$REPO_ROOT/environment_nonin.yml"
 
+echo "Installing pygame audio backend..."
+conda install --yes --prefix "$ENV_PREFIX" -c conda-forge pygame
+
+echo "Ensuring PsychoPy audio backend dependencies are installed..."
+if ! conda run --prefix "$ENV_PREFIX" python -c "import sounddevice" >/dev/null 2>&1; then
+  conda install --yes --prefix "$ENV_PREFIX" -c conda-forge \
+    portaudio \
+    python-sounddevice
+fi
+
 echo "Installing PsychoPy..."
 conda run --prefix "$ENV_PREFIX" python -m pip install "psychopy==2025.2.4"
 

@@ -72,6 +72,10 @@ For the Nonin USB HRD workflow in this repository:
    `python scripts/run_hrd_nonin.py --serial-port <YOUR_SERIAL_PORT>`
 4. Optional: swap mouse mapping (default is `right=More`, `left=Less`):
    `python scripts/run_hrd_nonin.py --serial-port <YOUR_SERIAL_PORT> --mouse-more-button left --mouse-less-button right`
+5. Optional: select audio backend (default is `pygame`):
+   `python scripts/run_hrd_nonin.py --serial-port <YOUR_SERIAL_PORT> --audio-backend pygame`
+
+The setup script installs compatible PsychoPy audio backend dependencies (`pygame`, `python-sounddevice`, `portaudio`) automatically.
 
 ## Dependencies
 

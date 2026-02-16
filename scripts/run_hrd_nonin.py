@@ -4,10 +4,37 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 from typing import Optional
+
+from psychopy import prefs
+from psychopy.sound import Sound as PsychoPySound
 
 from cardioception.HRD.parameters import getParameters
 from cardioception.HRD.task import run
+
+
+def configure_audio_backend(backend: str) -> None:
+    """Force a PsychoPy audio backend with explicit dependency checks."""
+    if backend == "pygame":
+        if importlib.util.find_spec("pygame") is None:
+            raise RuntimeError(
+                "Audio backend 'pygame' is not installed. "
+                "Install it with: conda install -c conda-forge pygame"
+            )
+        prefs.hardware["audioLib"] = ["pygame", "ptb"]
+        PsychoPySound.backend = "pygame"
+    elif backend == "ptb":
+        if importlib.util.find_spec("psychtoolbox") is None:
+            raise RuntimeError(
+                "Audio backend 'ptb' requires psychtoolbox. "
+                "Install it with: pip install psychtoolbox (or use --audio-backend pygame)."
+            )
+        prefs.hardware["audioLib"] = ["ptb", "pygame"]
+        PsychoPySound.backend = "ptb"
+    else:
+        raise ValueError("audio backend must be 'pygame' or 'ptb'")
+    print(f"Using PsychoPy audio backend: {PsychoPySound.backend}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -58,6 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip tutorial.",
     )
     parser.add_argument(
+        "--audio-backend",
+        default="pygame",
+        choices=["pygame", "ptb"],
+        help="PsychoPy audio backend to use.",
+    )
+    parser.add_argument(
         "--mouse-more-button",
         default="right",
         choices=["left", "middle", "right"],
@@ -77,6 +110,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.mouse_more_button == args.mouse_less_button:
         parser.error("--mouse-more-button and --mouse-less-button must be different")
+    configure_audio_backend(args.audio_backend)
 
     result_path: Optional[str] = args.result_path
     parameters = getParameters(
