@@ -1,5 +1,6 @@
 name: cardioception
 dependencies:
+<<<<<<< HEAD
   - python=3.9
   - pip
   - conda-forge::pywinhook=1.6.2
@@ -8,3 +9,9 @@ dependencies:
     - systole==0.2.4
     - psychopy==2022.2.5
     - cardioception
+=======
+  - python=3.11
+  - pip
+  - pip:
+    - -e .
+>>>>>>> nonin3231usb_updated

@@ -2,14 +2,24 @@
 # Maintained by the Embodied Computation Group, Aarhus University
 
 import os
+<<<<<<< HEAD
+=======
+from pathlib import Path
+>>>>>>> nonin3231usb_updated
 from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
+<<<<<<< HEAD
 import pkg_resources  # type: ignore
 import serial
 from systole import serialSim
 from systole.recording import Oximeter
+=======
+import serial
+from systole import serialSim
+from systole.recording import Oximeter, Nonin3231USB
+>>>>>>> nonin3231usb_updated
 
 from cardioception.HRD.languages import danish, danish_children, english, french
 
@@ -29,7 +39,12 @@ def getParameters(
     nBreaking: int = 20,
     resultPath: Optional[str] = None,
     language: str = "english",
+<<<<<<< HEAD
     systole_kw: dict = {},
+=======
+    systole_kw: Optional[dict] = None,
+    mouse_response_buttons: Optional[dict] = None,
+>>>>>>> nonin3231usb_updated
 ):
     """Create Heart Rate Discrimination task parameters.
 
@@ -87,6 +102,12 @@ def getParameters(
         Staircase type. Can be "psi" or "updown". Default set to "psi".
     systole_kw : dict
         Additional keyword arguments for :py:class:`systole.recorder.Oxmeter`.
+<<<<<<< HEAD
+=======
+    mouse_response_buttons : dict | None
+        Optional mapping for mouse responses. Must define `"More"` and `"Less"`
+        with values in `{"left", "middle", "right"}`.
+>>>>>>> nonin3231usb_updated
 
     Attributes
     ----------
@@ -163,6 +184,11 @@ def getParameters(
         The key to press to start the task and go to next steps.
     response_keys : dict
         Mapping from trial conditions to keyboard response keys.
+<<<<<<< HEAD
+=======
+    mouse_response_buttons : dict
+        Mapping from trial conditions to mouse buttons.
+>>>>>>> nonin3231usb_updated
     respMax : float
         The maximum time for decision (in seconds).
     results : str
@@ -205,11 +231,36 @@ def getParameters(
     """
     from psychopy import data, event, visual
 
+<<<<<<< HEAD
     parameters: Dict[str, Any] = {}
     parameters["ExteroCondition"] = exteroception
     parameters["device"] = device
     if parameters["device"] == "keyboard":
         parameters["confScale"] = [1, 7]
+=======
+    if systole_kw is None:
+        systole_kw = {}
+    if mouse_response_buttons is None:
+        mouse_response_buttons = {"Less": "left", "More": "right"}
+    mouse_response_buttons = {
+        key: str(value).lower() for key, value in mouse_response_buttons.items()
+    }
+    valid_buttons = {"left", "middle", "right"}
+    required_keys = {"Less", "More"}
+    if set(mouse_response_buttons.keys()) != required_keys:
+        raise ValueError("mouse_response_buttons must define exactly {'Less', 'More'}")
+    if any(button not in valid_buttons for button in mouse_response_buttons.values()):
+        raise ValueError("mouse_response_buttons values must be left, middle, or right")
+    if mouse_response_buttons["Less"] == mouse_response_buttons["More"]:
+        raise ValueError("mouse_response_buttons values for Less and More must differ")
+
+    module_dir = Path(__file__).resolve().parent
+    images_dir = module_dir / "Images"
+
+    parameters: Dict[str, Any] = {}
+    parameters["ExteroCondition"] = exteroception
+    parameters["device"] = device
+>>>>>>> nonin3231usb_updated
     parameters["labelsRating"] = ["Guess", "Certain"]
     parameters["screenNb"] = screenNb
     parameters["monitor"] = "testMonitor"
@@ -222,6 +273,10 @@ def getParameters(
     parameters["startKey"] = "space"
     parameters["response_keys"] = {"More": "up", "Less": "down"}
     parameters["allowedKeys"] = list(parameters["response_keys"].values())
+<<<<<<< HEAD
+=======
+    parameters["mouse_response_buttons"] = mouse_response_buttons
+>>>>>>> nonin3231usb_updated
     parameters["nTrials"] = nTrials
     parameters["nBreaking"] = nBreaking
     parameters["lambdaIntero"] = []  # Save the history of lambda values
@@ -237,7 +292,11 @@ def getParameters(
     if resultPath is None:
         parameters["resultPath"] = parameters["path"] + "/data/" + participant + session
     else:
+<<<<<<< HEAD
         parameters["resultPath"] = None
+=======
+        parameters["resultPath"] = resultPath
+>>>>>>> nonin3231usb_updated
     # Create Results directory if not already exists
     if not os.path.exists(parameters["resultPath"]):
         os.makedirs(parameters["resultPath"])
@@ -382,6 +441,7 @@ def getParameters(
     parameters["setup"] = setup
     if setup == "behavioral":
         # PPG recording
+<<<<<<< HEAD
         port = serial.Serial(serialPort)
         parameters["oxiTask"] = Oximeter(
             serial=port, sfreq=75, add_channels=1, **systole_kw
@@ -390,6 +450,18 @@ def getParameters(
         
         # # for Nonin 3231 USB
         # parameters['oxiTask'] = Nonin3231USB(serial=port, add_channels=1).setup().read(1)
+=======
+        port = serial.Serial(serialPort, timeout=2)
+        # parameters["oxiTask"] = Oximeter(
+        #     serial=port, sfreq=75, add_channels=1, **systole_kw
+        # )
+        # parameters["oxiTask"].setup().read(duration=1)
+        
+        # for Nonin 3231 USB
+        parameters["oxiTask"] = (
+            Nonin3231USB(serial=port, add_channels=1).setup().read(duration=1)
+        )
+>>>>>>> nonin3231usb_updated
 
     elif setup == "test":
         # Use pre-recorded pulse time series for testing
@@ -428,7 +500,11 @@ def getParameters(
         fullscr=fullscr,
         units="height",
     )
+<<<<<<< HEAD
     parameters["win"].mouseVisible = False
+=======
+    parameters["win"].mouseVisible = parameters["device"] == "mouse"
+>>>>>>> nonin3231usb_updated
 
     ###############
     # Image loading
@@ -437,14 +513,22 @@ def getParameters(
         parameters["pulseSchema"] = visual.ImageStim(
             win=parameters["win"],
             units="height",
+<<<<<<< HEAD
             image=pkg_resources.resource_filename(__name__, "Images/pulseOximeter.png"),
+=======
+            image=str(images_dir / "pulseOximeter.png"),
+>>>>>>> nonin3231usb_updated
             pos=(0.0, 0.0),
         )
         parameters["pulseSchema"].size *= 0.2
         parameters["handSchema"] = visual.ImageStim(
             win=parameters["win"],
             units="height",
+<<<<<<< HEAD
             image=pkg_resources.resource_filename(__name__, "Images/hand.png"),
+=======
+            image=str(images_dir / "hand.png"),
+>>>>>>> nonin3231usb_updated
             pos=(0.0, -0.08),
         )
         parameters["handSchema"].size *= 0.15
@@ -452,7 +536,11 @@ def getParameters(
     parameters["listenLogo"] = visual.ImageStim(
         win=parameters["win"],
         units="height",
+<<<<<<< HEAD
         image=pkg_resources.resource_filename(__name__, "Images/listen.png"),
+=======
+        image=str(images_dir / "listen.png"),
+>>>>>>> nonin3231usb_updated
         pos=(0.0, 0.0),
     )
     parameters["listenLogo"].size *= 0.08
@@ -460,7 +548,11 @@ def getParameters(
     parameters["heartLogo"] = visual.ImageStim(
         win=parameters["win"],
         units="height",
+<<<<<<< HEAD
         image=pkg_resources.resource_filename(__name__, "Images/heartbeat.png"),
+=======
+        image=str(images_dir / "heartbeat.png"),
+>>>>>>> nonin3231usb_updated
         pos=(0.0, 0.0),
     )
     parameters["heartLogo"].size *= 0.04

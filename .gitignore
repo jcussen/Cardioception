@@ -1,4 +1,8 @@
 .ipynb_checkpoints
+<<<<<<< HEAD
+=======
+.idea/
+>>>>>>> nonin3231usb_updated
 *.pyc
 .mypy_cache
 .pytest_cache
@@ -12,3 +16,8 @@ docs/source/api
 docs/build
 docs/auto_examples
 .Rproj.user
+<<<<<<< HEAD
+=======
+conda-envs/
+data/
+>>>>>>> nonin3231usb_updated

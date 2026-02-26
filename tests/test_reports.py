@@ -1,7 +1,10 @@
 # Authors: Nicolas Legrand and Micah Allen, 2019-2022. Contact: micah@cfin.au.dk
 # Maintained by the Embodied Computation Group, Aarhus University
 
+<<<<<<< HEAD
 import os
+=======
+>>>>>>> nonin3231usb_updated
 import unittest
 from unittest import TestCase
 import pandas as pd
@@ -14,8 +17,22 @@ class TestReports(TestCase):
         """Test the preprocessing function"""
         # load the main result data frame
         results = pd.read_csv(
+<<<<<<< HEAD
             "https://raw.githubusercontent.com/embodied-computation-group/Cardioception/master/docs/source/examples/templates/data/HRD/HRD_final.txt"
             )
+=======
+            Path(
+                Path.cwd(),
+                "docs",
+                "source",
+                "examples",
+                "templates",
+                "data",
+                "HRD",
+                "HRD_final.txt",
+            )
+        )
+>>>>>>> nonin3231usb_updated
         preprocessing(results=results)
 
 

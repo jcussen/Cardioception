@@ -60,9 +60,32 @@ This will create a new `cardioception` environment that you can later activate u
 
 Note: If you are using the shortcut method described bellow, you will have to activate the *cardioception* environment instead of the *base* one.
 
+<<<<<<< HEAD
 ## Dependencies
 
 Cardioception has been tested with Python 3.7. We recommend to use the last install of Anaconda for Python 3.7 or latest (see <https://www.anaconda.com/products/individual#download-section>).
+=======
+### Nonin (Python 3.11) quickstart
+
+For the Nonin USB HRD workflow in this repository:
+
+1. Create the environment and install dependencies:
+   `./scripts/setup_conda_nonin.sh`
+2. Activate the environment:
+   `conda activate ./conda-envs/cardioception-nonin`
+3. Run HRD:
+   `python scripts/run_hrd_nonin.py --serial-port <YOUR_SERIAL_PORT>`
+4. Optional: swap mouse mapping (default is `right=More`, `left=Less`):
+   `python scripts/run_hrd_nonin.py --serial-port <YOUR_SERIAL_PORT> --mouse-more-button left --mouse-less-button right`
+5. Optional: select audio backend (default is `pygame`):
+   `python scripts/run_hrd_nonin.py --serial-port <YOUR_SERIAL_PORT> --audio-backend pygame`
+
+The setup script installs compatible PsychoPy audio backend dependencies (`pygame`, `python-sounddevice`, `portaudio`) automatically.
+
+## Dependencies
+
+Cardioception has been tested with Python 3.11.
+>>>>>>> nonin3231usb_updated
 
 Make sure that you have the following packages installed and up to date before running cardioception:
 
@@ -72,6 +95,7 @@ The package can be installed by downloading the repository and following the ins
 
 The other main dependencies are:
 
+<<<<<<< HEAD
 * [numpy](https://numpy.org/) (>=1.18,<=1.23)
 * [scipy](https://www.scipy.org/) (>=1.3.0)
 * [pandas](https://pandas.pydata.org/) (>=1.0.3)
@@ -83,6 +107,21 @@ In addition, some function for HTML reports will require:
 * [matplotlib](https://matplotlib.org/) (>=3.3.3)
 * [seaborn](https://seaborn.pydata.org/) (>=0.11.1)
 * [pingouin](https://pingouin-stats.org/) (>=0.3.10)
+=======
+* [numpy](https://numpy.org/) (>=2.0,<2.3)
+* [scipy](https://www.scipy.org/) (>=1.10)
+* [pandas](https://pandas.pydata.org/) (>=1.5)
+* [pyserial](https://pypi.org/project/pyserial/) (>=3.5)
+* [psychopy](https://www.psychopy.org/) (==2025.2.4)
+* [bokeh](https://bokeh.org/) (>=3.0.0)
+
+In addition, some function for HTML reports will require:
+
+* [papermill](https://papermill.readthedocs.io/en/latest/) (>=2.6.0)
+* [matplotlib](https://matplotlib.org/) (>=3.8)
+* [seaborn](https://seaborn.pydata.org/) (>=0.13)
+* [pingouin](https://pingouin-stats.org/) (>=0.5.5)
+>>>>>>> nonin3231usb_updated
 * [metadpy](https://github.com/Embodi3dComputationGroup/metadpy) (>=0.1.0)
 * [pymc](https://www.pymc.io/welcome.html) (>=5.0)
 

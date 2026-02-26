@@ -11,7 +11,11 @@ from unittest import TestCase
 import numpy as np
 from psychopy import prefs
 
+<<<<<<< HEAD
 prefs.hardware["audioLib"] = ["pygame"]
+=======
+prefs.hardware["audioLib"] = ["ptb", "sounddevice", "pygame"]
+>>>>>>> nonin3231usb_updated
 
 from cardioception.HRD.parameters import getParameters
 from cardioception.HRD.task import run
