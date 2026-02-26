@@ -314,6 +314,7 @@ def trial(
                 labels=parameters["labelsRating"],
                 granularity=1,
                 style="rating",
+                font="Arial",
                 color="LightGray",
                 labelHeight=0.1 * 0.6,
             )

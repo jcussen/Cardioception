@@ -14,6 +14,43 @@ from cardioception.input import digit_key_list, parse_digit_key
 SOUNDS_DIR = Path(__file__).resolve().parent / "Sounds"
 
 
+def _save_oximeter_recording(oxi_task, fname: str) -> None:
+    """Persist oximeter data for both Oximeter and Nonin3231USB APIs."""
+    save_fn = getattr(oxi_task, "save", None)
+    if callable(save_fn):
+        save_fn(fname)
+        return
+
+    # Fallback for systole>=0.3 Nonin3231USB, which has no `.save()` method.
+    columns = {}
+    for attr in ("recording", "bpm", "SpO2", "times"):
+        values = getattr(oxi_task, attr, None)
+        if values is not None:
+            columns[attr] = list(values)
+
+    channels = getattr(oxi_task, "channels", None)
+    if isinstance(channels, dict):
+        for ch_name, values in channels.items():
+            columns[ch_name] = list(values)
+
+    if not columns:
+        print(f"Warning: no oximeter samples available to save for {fname}")
+        return
+
+    max_len = max(len(values) for values in columns.values())
+    padded = {}
+    for name, values in columns.items():
+        if len(values) < max_len:
+            values = values + [np.nan] * (max_len - len(values))
+        padded[name] = values
+
+    output = pd.DataFrame(padded)
+    if fname.endswith(".txt") or fname.endswith(".csv"):
+        output.to_csv(fname, index=False)
+    else:
+        output.to_csv(f"{fname}.txt", index=False)
+
+
 def run(
     parameters: dict,
     confidenceRating: bool = True,
@@ -220,7 +257,8 @@ def run(
             remain.draw()
             message.draw()
             parameters["win"].flip()
-            parameters["oxiTask"].save(
+            _save_oximeter_recording(
+                parameters["oxiTask"],
                 f"{parameters['resultPath']}/{parameters['participant']}_ppg_{nTrial}.txt"
             )
 
@@ -257,7 +295,8 @@ def run(
     )
 
     # Save last pulse oximeter recording, if relevant
-    parameters["oxiTask"].save(
+    _save_oximeter_recording(
+        parameters["oxiTask"],
         f"{parameters['resultPath']}/{parameters['participant']}_ppg_{nTrial}_end.txt"
     )
 
@@ -1229,6 +1268,7 @@ def confidenceRatingTask(
             labels=parameters["labelsRating"],
             granularity=1,
             style="rating",
+            font="Arial",
             color="LightGray",
             labelHeight=0.1 * 0.6,
         )
@@ -1300,6 +1340,7 @@ def confidenceRatingTask(
             granularity=1,
             ticks=(0, 100),
             style=("rating"),
+            font="Arial",
             color="LightGray",
             flip=False,
             labelHeight=0.1 * 0.6,
