@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+from pathlib import Path
 from typing import Optional
 
 from psychopy import prefs
@@ -41,7 +42,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run Heart Rate Discrimination with Nonin3231USB (behavioral setup)."
     )
-    parser.add_argument("--participant", default="Participant", help="Participant ID")
+    parser.add_argument(
+        "--subject-num",
+        required=True,
+        type=int,
+        help="Numeric subject identifier (required, e.g. 12).",
+    )
     parser.add_argument("--session", default="HRD", help="Session label")
     parser.add_argument(
         "--serial-port",
@@ -110,11 +116,31 @@ def main() -> int:
     args = parser.parse_args()
     if args.mouse_more_button == args.mouse_less_button:
         parser.error("--mouse-more-button and --mouse-less-button must be different")
+
+    participant_id = str(args.subject_num)
+
+    # Prevent accidental overwrite if data already exists for this participant.
+    result_path: Optional[str] = args.result_path
+    output_dir = (
+        Path(result_path)
+        if result_path is not None
+        else Path.cwd() / "data" / f"{participant_id}{args.session}"
+    )
+    if output_dir.exists():
+        participant_files = list(output_dir.glob(f"{participant_id}*"))
+        if participant_files:
+            parser.exit(
+                1,
+                (
+                    f"data already exists for participant {args.subject_num}, "
+                    "please provide unique subject number\n"
+                ),
+            )
+
     configure_audio_backend(args.audio_backend)
 
-    result_path: Optional[str] = args.result_path
     parameters = getParameters(
-        participant=args.participant,
+        participant=participant_id,
         session=args.session,
         serialPort=args.serial_port,
         setup="behavioral",
