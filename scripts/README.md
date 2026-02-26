@@ -12,7 +12,7 @@ This guide explains how to run the HRD task from scratch on a new machine.
 ## 2) Clone the repository
 
 ```bash
-git clone https://github.com/embodied-computation-group/Cardioception.git
+git clone --depth 1 --single-branch https://github.com/jcussen/Cardioception.git
 cd Cardioception
 ```
 
@@ -47,7 +47,7 @@ conda activate ./conda-envs/cardioception-nonin
 From the repo root, run:
 
 ```bash
-python scripts/run_hrd_nonin.py --subject-num 12
+python scripts/run_hrd_nonin.py --subject-num 1
 ```
 
 Notes:
@@ -69,7 +69,7 @@ ls /dev/cu.usb* /dev/tty.usb*
 Run with explicit port:
 
 ```bash
-python scripts/run_hrd_nonin.py --subject-num 12 --serial-port /dev/cu.usbmodemXXXX
+python scripts/run_hrd_nonin.py --subject-num 1 --serial-port /dev/cu.usbmodemXXXX
 ```
 
 ### Windows
@@ -77,7 +77,7 @@ python scripts/run_hrd_nonin.py --subject-num 12 --serial-port /dev/cu.usbmodemX
 Use the COM port in Device Manager:
 
 ```bash
-python scripts/run_hrd_nonin.py --subject-num 12 --serial-port COM5
+python scripts/run_hrd_nonin.py --subject-num 1 --serial-port COM5
 ```
 
 ## 8) Useful optional flags
@@ -85,19 +85,13 @@ python scripts/run_hrd_nonin.py --subject-num 12 --serial-port COM5
 Windowed mode:
 
 ```bash
-python scripts/run_hrd_nonin.py --subject-num 12 --windowed
-```
-
-Swap mouse response mapping:
-
-```bash
-python scripts/run_hrd_nonin.py --subject-num 12 --mouse-more-button left --mouse-less-button right
+python scripts/run_hrd_nonin.py --subject-num 1 --windowed
 ```
 
 Skip tutorial:
 
 ```bash
-python scripts/run_hrd_nonin.py --subject-num 12 --skip-tutorial
+python scripts/run_hrd_nonin.py --subject-num 1 --skip-tutorial
 ```
 
 ## 9) Where output is saved
@@ -106,6 +100,6 @@ By default:
 
 `./data/<subject-num><session>/`
 
-Default session is `HRD`, so subject `12` saves to:
+Default session is `HRD`, so subject `1` saves to:
 
-`./data/12HRD/`
+`./data/1HRD/`
