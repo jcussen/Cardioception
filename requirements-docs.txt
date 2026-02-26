@@ -15,11 +15,4 @@ pydata-sphinx-theme>=0.12.0
 # Visualization (compatible versions)
 graphviz
 
-<<<<<<< HEAD
-# Note: Removed problematic packages that cause dependency conflicts
-# - xarray (conflicts with numpy version)
-# - bokeh (conflicts with systole requirements)
-# - pymc, metadpy, watermark (optional packages)
-=======
 # Optional analysis packages are intentionally excluded from docs builds.
->>>>>>> nonin3231usb_updated

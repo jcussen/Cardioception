@@ -10,6 +10,7 @@ from typing import Optional
 
 from psychopy import prefs
 from psychopy.sound import Sound as PsychoPySound
+from serial.tools import list_ports
 
 from cardioception.HRD.parameters import getParameters
 from cardioception.HRD.task import run
@@ -38,6 +39,51 @@ def configure_audio_backend(backend: str) -> None:
     print(f"Using PsychoPy audio backend: {PsychoPySound.backend}")
 
 
+def detect_nonin_port(explicit_port: Optional[str]) -> str:
+    """Resolve serial port from explicit argument or auto-detection."""
+    if explicit_port:
+        return explicit_port
+
+    candidates = []
+    for port in list_ports.comports():
+        fields = [
+            str(port.device or ""),
+            str(port.description or ""),
+            str(port.manufacturer or ""),
+            str(port.product or ""),
+            str(port.hwid or ""),
+        ]
+        meta = " ".join(fields).lower()
+        device = str(port.device or "")
+        device_l = device.lower()
+
+        if (
+            ("nonin" in meta)
+            or ("usbmodem" in device_l)
+            or ("usbserial" in device_l)
+        ):
+            # On macOS prefer /dev/cu.* over /dev/tty.* for active serial comms.
+            if device.startswith("/dev/tty."):
+                candidates.append("/dev/cu." + device.split("/dev/tty.", 1)[1])
+            else:
+                candidates.append(device)
+
+    candidates = sorted(set(candidates))
+    if len(candidates) == 1:
+        resolved = candidates[0]
+        print(f"Auto-detected serial port: {resolved}")
+        return resolved
+    if len(candidates) == 0:
+        raise RuntimeError(
+            "Could not auto-detect Nonin serial port. Please pass --serial-port."
+        )
+    raise RuntimeError(
+        "Multiple possible serial ports found: "
+        + ", ".join(candidates)
+        + ". Please pass --serial-port."
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run Heart Rate Discrimination with Nonin3231USB (behavioral setup)."
@@ -51,8 +97,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--session", default="HRD", help="Session label")
     parser.add_argument(
         "--serial-port",
-        required=True,
-        help="Serial port for the Nonin device (e.g. COM5 or /dev/tty.usbserial-XXXX).",
+        default=None,
+        help=(
+            "Serial port for the Nonin device "
+            "(e.g. COM5 or /dev/cu.usbmodem-XXXX). "
+            "If omitted, auto-detection is attempted."
+        ),
     )
     parser.add_argument(
         "--language",
@@ -138,11 +188,12 @@ def main() -> int:
             )
 
     configure_audio_backend(args.audio_backend)
+    serial_port = detect_nonin_port(args.serial_port)
 
     parameters = getParameters(
         participant=participant_id,
         session=args.session,
-        serialPort=args.serial_port,
+        serialPort=serial_port,
         setup="behavioral",
         stairType=args.stair_type,
         exteroception=not args.no_exteroception,

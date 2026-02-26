@@ -6,8 +6,6 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-<<<<<<< HEAD
-=======
 from cardioception.input import digit_key_list, parse_digit_key
 
 
@@ -20,7 +18,6 @@ def _fire_trigger(parameters: dict, name: str) -> None:
     if callable(trigger):
         trigger()
 
->>>>>>> nonin3231usb_updated
 
 def run(
     parameters: dict,
@@ -54,21 +51,13 @@ def run(
         range(0, len(parameters["conditions"])),
     ):
 
-<<<<<<< HEAD
-        parameters["triggers"]["trialStart"]  # Send trigger or None
-=======
         _fire_trigger(parameters, "trialStart")
->>>>>>> nonin3231usb_updated
 
         nCount, confidence, confidenceRT = trial(
             condition, duration, nTrial, parameters
         )
 
-<<<<<<< HEAD
-        parameters["triggers"]["trialStop"]  # Send trigger or None
-=======
         _fire_trigger(parameters, "trialStop")
->>>>>>> nonin3231usb_updated
 
         # Store results in a DataFrame
         parameters["results_df"] = pd.concat(
@@ -163,11 +152,7 @@ def trial(
     )
     messageStart.draw()
     parameters["win"].flip()
-<<<<<<< HEAD
-    event.waitKeys(keyList=parameters["startKey"])
-=======
     event.waitKeys(keyList=_start_key_list(parameters))
->>>>>>> nonin3231usb_updated
     parameters["win"].flip()
 
     parameters["oxiTask"].setup()
@@ -204,11 +189,7 @@ def trial(
         # Add event marker
         parameters["oxiTask"].channels["Channel_0"][-1] = 1
         parameters["noteStart"].play()
-<<<<<<< HEAD
-        parameters["triggers"]["listeningStart"]
-=======
         _fire_trigger(parameters, "listeningStart")
->>>>>>> nonin3231usb_updated
         core.wait(1)
 
     # Record for a desired time length
@@ -220,11 +201,7 @@ def trial(
         parameters["oxiTask"].readInWaiting()
         parameters["oxiTask"].channels["Channel_0"][-1] = 2
         parameters["noteStop"].play()
-<<<<<<< HEAD
-        parameters["triggers"]["listeningStop"]
-=======
         _fire_trigger(parameters, "listeningStop")
->>>>>>> nonin3231usb_updated
         core.wait(3)
         parameters["oxiTask"].readInWaiting()
 
@@ -255,41 +232,6 @@ def trial(
         messageCount.draw()
         parameters["win"].flip()
 
-<<<<<<< HEAD
-        parameters["triggers"]["decisionStart"]  # Send trigger or None
-
-        nCounts = ""
-        while True:
-
-            # Record new key
-            key = event.waitKeys(
-                keyList=[
-                    "escape",
-                    "backspace",
-                    "return",
-                    "1",
-                    "2",
-                    "3",
-                    "4",
-                    "5",
-                    "6",
-                    "7",
-                    "8",
-                    "9",
-                    "0",
-                    "num_1",
-                    "num_2",
-                    "num_3",
-                    "num_4",
-                    "num_5",
-                    "num_6",
-                    "num_7",
-                    "num_8",
-                    "num_9",
-                    "num_0",
-                ]
-            )
-=======
         _fire_trigger(parameters, "decisionStart")
 
         nCounts = ""
@@ -307,7 +249,6 @@ def trial(
 
             # Record new key
             key = event.waitKeys(keyList=count_key_list)
->>>>>>> nonin3231usb_updated
 
             if key[0] == "escape":
                 keys = event.getKeys()
@@ -318,11 +259,7 @@ def trial(
             if key[0] == "backspace":
                 if nCounts:
                     nCounts = nCounts[:-1]
-<<<<<<< HEAD
-            elif key[0] == "return":
-=======
             elif key[0] in {"return", "enter", "num_enter", "numpad_enter", "kp_enter"}:
->>>>>>> nonin3231usb_updated
                 if not all(char.isdigit() for char in nCounts):
                     messageError = visual.TextStim(
                         parameters["win"],
@@ -348,13 +285,9 @@ def trial(
 
             else:
                 if key:
-<<<<<<< HEAD
-                    nCounts += [s for s in key[0] if s.isdigit()][0]
-=======
                     digit = parse_digit_key(key[0])
                     if digit is not None:
                         nCounts += digit
->>>>>>> nonin3231usb_updated
 
             # Show the text on the screen
             recordedText = visual.TextStim(
@@ -364,30 +297,13 @@ def trial(
             messageCount.draw()
             parameters["win"].flip()
 
-<<<<<<< HEAD
-        parameters["triggers"]["decisionStop"]  # Send trigger or None
-=======
         _fire_trigger(parameters, "decisionStop")
->>>>>>> nonin3231usb_updated
 
         ##############
         # Rating scale
         ##############
         if parameters["rating"] is True:
             markerStart = np.random.choice(
-<<<<<<< HEAD
-                np.arange(parameters["confScale"][0], parameters["confScale"][1])
-            )
-            ratingScale = visual.RatingScale(
-                parameters["win"],
-                low=parameters["confScale"][0],
-                high=parameters["confScale"][1],
-                noMouse=True,
-                labels=parameters["labelsRating"],
-                acceptKeys="down",
-                markerStart=markerStart,
-            )
-=======
                 np.arange(parameters["confScale"][0], parameters["confScale"][1] + 1)
             )
             slider = visual.Slider(
@@ -403,22 +319,11 @@ def trial(
                 labelHeight=0.1 * 0.6,
             )
             slider.markerPos = markerStart
->>>>>>> nonin3231usb_updated
             message = visual.TextStim(
                 parameters["win"],
                 text=parameters["texts"]["confidence"],
                 height=parameters["textSize"],
             )
-<<<<<<< HEAD
-            parameters["triggers"]["confidenceStart"]
-            while ratingScale.noResponse:
-                message.draw()
-                ratingScale.draw()
-                parameters["win"].flip()
-            confidence = ratingScale.getRating()
-            confidenceRT = ratingScale.getRT()
-            parameters["triggers"]["confidenceStop"]
-=======
 
             _fire_trigger(parameters, "confidenceStart")
             event.clearEvents(eventType="keyboard")
@@ -453,7 +358,6 @@ def trial(
                 slider.draw()
                 parameters["win"].flip()
             _fire_trigger(parameters, "confidenceStop")
->>>>>>> nonin3231usb_updated
 
     finalCount = int(nCounts) if nCounts else None
 
@@ -488,11 +392,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-<<<<<<< HEAD
-    event.waitKeys(keyList=parameters["startKey"])
-=======
     event.waitKeys(keyList=_start_key_list(parameters))
->>>>>>> nonin3231usb_updated
 
     # Tutorial 2
     messageStart = visual.TextStim(
@@ -511,11 +411,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-<<<<<<< HEAD
-    event.waitKeys(keyList=parameters["startKey"])
-=======
     event.waitKeys(keyList=_start_key_list(parameters))
->>>>>>> nonin3231usb_updated
 
     # Tutorial 3
     if parameters["taskVersion"] == "Shandry":
@@ -536,11 +432,7 @@ def tutorial(parameters: dict):
         )
         press.draw()
         parameters["win"].flip()
-<<<<<<< HEAD
-        event.waitKeys(keyList=parameters["startKey"])
-=======
         event.waitKeys(keyList=_start_key_list(parameters))
->>>>>>> nonin3231usb_updated
 
     # Tutorial 4
     messageStart = visual.TextStim(
@@ -558,11 +450,7 @@ def tutorial(parameters: dict):
     press.draw()
     parameters["win"].flip()
 
-<<<<<<< HEAD
-    event.waitKeys(keyList=parameters["startKey"])
-=======
     event.waitKeys(keyList=_start_key_list(parameters))
->>>>>>> nonin3231usb_updated
 
     # Tutorial 5
     messageStart = visual.TextStim(
@@ -579,11 +467,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-<<<<<<< HEAD
-    event.waitKeys(keyList=parameters["startKey"])
-=======
     event.waitKeys(keyList=_start_key_list(parameters))
->>>>>>> nonin3231usb_updated
 
     # Tutorial 6
     messageStart = visual.TextStim(
@@ -600,11 +484,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-<<<<<<< HEAD
-    event.waitKeys(keyList=parameters["startKey"])
-=======
     event.waitKeys(keyList=_start_key_list(parameters))
->>>>>>> nonin3231usb_updated
 
     # Tutorial 7
     messageStart = visual.TextStim(
@@ -621,11 +501,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-<<<<<<< HEAD
-    event.waitKeys(keyList=parameters["startKey"])
-=======
     event.waitKeys(keyList=_start_key_list(parameters))
->>>>>>> nonin3231usb_updated
 
     # Tutorial 8
     messageStart = visual.TextStim(
@@ -642,11 +518,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-<<<<<<< HEAD
-    event.waitKeys(keyList=parameters["startKey"])
-=======
     event.waitKeys(keyList=_start_key_list(parameters))
->>>>>>> nonin3231usb_updated
 
     # Practice trial
     _ = trial("Count", 15, 0, parameters)
@@ -666,11 +538,7 @@ def tutorial(parameters: dict):
     )
     press.draw()
     parameters["win"].flip()
-<<<<<<< HEAD
-    event.waitKeys(keyList=parameters["startKey"])
-=======
     event.waitKeys(keyList=_start_key_list(parameters))
->>>>>>> nonin3231usb_updated
 
 
 def rest(parameters: dict, duration: float = 300.0):

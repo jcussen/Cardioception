@@ -25,11 +25,7 @@ This will create a new `cardioception` environment that you can later activate u
 
 ## Dependencies
 
-<<<<<<< HEAD
-Cardioception has been tested with Python 3.7. We recommend to use the last install of Anaconda for Python 3.7 or latest (see [this link](https://www.anaconda.com/products/individual#download-section)).
-=======
 Cardioception has been tested with Python 3.11.
->>>>>>> nonin3231usb_updated
 
 Make sure that you have the following packages installed and up to date before running cardioception:
 
@@ -38,19 +34,6 @@ Make sure that you have the following packages installed and up to date before r
 
 The other main dependencies are:
 
-<<<<<<< HEAD
-* [numpy](https://numpy.org/) (>=1.18,<=1.23)
-* [scipy](https://www.scipy.org/) (>=1.3.0)
-* [pandas](https://pandas.pydata.org/) (>=1.0.3)
-* [pyserial](https://pypi.org/project/pyserial/) (>=3.4)
-
-In addition, some function for HTML reports will require:
-
-* [papermill](https://papermill.readthedocs.io/en/latest/) (>=2.3.1)
-* [matplotlib](https://matplotlib.org/) (>=3.3.3)
-* [seaborn](https://seaborn.pydata.org/) (>=0.11.1)
-* [pingouin](https://pingouin-stats.org/) (>=0.3.10)
-=======
 * [numpy](https://numpy.org/) (>=2.0,<2.3)
 * [scipy](https://www.scipy.org/) (>=1.10)
 * [pandas](https://pandas.pydata.org/) (>=1.5)
@@ -64,7 +47,6 @@ In addition, some function for HTML reports will require:
 * [matplotlib](https://matplotlib.org/) (>=3.8)
 * [seaborn](https://seaborn.pydata.org/) (>=0.13)
 * [pingouin](https://pingouin-stats.org/) (>=0.5.5)
->>>>>>> nonin3231usb_updated
 * [metadpy](https://github.com/EmbodiedComputationGroup/metadpy) (>=0.1.0)
 * [pymc](https://www.pymc.io/welcome.html) (>=5.0)
 

@@ -34,10 +34,7 @@ if __name__ == "__main__":
         long_description=LONG_DESCRIPTION,
         license=read("LICENSE"),
         version=VERSION,
-<<<<<<< HEAD
-=======
         python_requires=">=3.11,<3.12",
->>>>>>> nonin3231usb_updated
         install_requires=get_requirements(),
         include_package_data=True,
         packages=find_packages(),

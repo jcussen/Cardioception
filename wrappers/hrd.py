@@ -16,11 +16,7 @@ g = gui.Dlg()
 g.addField("participant", initial="Participant")
 g.addField("session", initial="HRD")
 g.addField("Serial Port:", initial="COM5")
-<<<<<<< HEAD
-g.addField("Setup:", initial="behavioral", choices=["behavioral", "test", "fMRI"])
-=======
 g.addField("Setup:", initial="behavioral", choices=["behavioral", "test"])
->>>>>>> nonin3231usb_updated
 g.addField("Device:", initial="mouse", choices=["mouse", "keyboard"])
 g.addField("Language:", initial="english", choices=["english", "danish", "french"])
 g.show()
