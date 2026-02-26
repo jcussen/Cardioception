@@ -430,7 +430,7 @@ def trial(
     # Print infos at each trial start
     print(f"Starting trial - Intensity: {alpha} - Modality: {modality}")
 
-    parameters["win"].mouseVisible = False
+    parameters["win"].mouseVisible = parameters["device"] == "mouse"
 
     # Restart the trial until participant provide response on time
     confidence, confidenceRT, isCorrect, ratingProvided = None, None, None, False
@@ -1318,13 +1318,7 @@ def confidenceRatingTask(
 
     elif parameters["device"] == "mouse":
 
-        # Use the mouse position to update the slider position
-        # The mouse movement is limited to a rectangle above the Slider
-        # To avoid being dragged out of the screen (in case of multi screens)
-        # and to avoid interferences with the Slider when clicking.
-        parameters["win"].mouseVisible = False
-        parameters["myMouse"].setPos((np.random.uniform(-0.25, 0.25), 0.2))
-        parameters["myMouse"].clickReset()
+        parameters["win"].mouseVisible = True
         message = visual.TextStim(
             parameters["win"],
             height=parameters["textSize"],
@@ -1346,56 +1340,24 @@ def confidenceRatingTask(
             labelHeight=0.1 * 0.6,
         )
         slider.marker.size = (0.03, 0.03)
+        slider.markerPos = 50
         clock = core.Clock()
         parameters["myMouse"].clickReset()
-        buttons, confidenceRT = parameters["myMouse"].getPressed(getTime=True)
+        left_was_pressed = False
+        pressed_since_last_release = False
+        slider_half_width = 0.35
 
         while True:
-            parameters["win"].mouseVisible = False
             trialdur = clock.getTime()
-            buttons, confidenceRT = parameters["myMouse"].getPressed(getTime=True)
+            keys = event.getKeys(keyList=["escape"])
+            if "escape" in keys:
+                print("User abort")
+                parameters["win"].close()
+                core.quit()
 
-            # Mouse position (keep in in the rectangle)
-            newPos = parameters["myMouse"].getPos()
-            if newPos[0] < -0.5:
-                newX = -0.5
-            elif newPos[0] > 0.5:
-                newX = 0.5
-            else:
-                newX = newPos[0]
-            if newPos[1] < 0.1:
-                newY = 0.1
-            elif newPos[1] > 0.3:
-                newY = 0.3
-            else:
-                newY = newPos[1]
-            parameters["myMouse"].setPos((newX, newY))
-
-            # Update marker position in Slider
-            p = newX / 0.5
-            slider.markerPos = 50 + (p * 50)
-
-            # Check if response provided
-            if (buttons == [1, 0, 0]) & (trialdur > parameters["minRatingTime"]):
-                confidence, confidenceRT, ratingProvided = (
-                    slider.markerPos,
-                    clock.getTime(),
-                    True,
-                )
-                print(
-                    f"... Confidence level: {confidence}"
-                    + f" with response time {round(confidenceRT, 2)} seconds"
-                )
-                # Change marker color after response provided
-                slider.marker.color = "green"
-                slider.draw()
-                message.draw()
-                parameters["win"].flip()
-                core.wait(0.2)
-                break
-            elif trialdur > parameters["maxRatingTime"]:  # if too long
+            if trialdur > parameters["maxRatingTime"]:  # if too long
                 ratingProvided = False
-                confidenceRT = parameters["myMouse"].clickReset()
+                confidenceRT = None
 
                 # Text feedback if no rating provided
                 message = visual.TextStim(
@@ -1409,6 +1371,35 @@ def confidenceRatingTask(
                 parameters["win"].flip()
                 core.wait(0.5)
                 break
+
+            buttons = parameters["myMouse"].getPressed()
+            left_pressed = bool(buttons[0]) if len(buttons) > 0 else False
+
+            if left_pressed:
+                pressed_since_last_release = True
+                mouse_x, _ = parameters["myMouse"].getPos()
+                clamped_x = min(max(mouse_x, -slider_half_width), slider_half_width)
+                slider.markerPos = ((clamped_x + slider_half_width) / (2 * slider_half_width)) * 100
+            elif left_was_pressed:
+                if pressed_since_last_release and (trialdur > parameters["minRatingTime"]):
+                    confidence, confidenceRT, ratingProvided = (
+                        slider.markerPos,
+                        clock.getTime(),
+                        True,
+                    )
+                    print(
+                        f"... Confidence level: {confidence}"
+                        + f" with response time {round(confidenceRT, 2)} seconds"
+                    )
+                    slider.marker.color = "green"
+                    slider.draw()
+                    message.draw()
+                    parameters["win"].flip()
+                    core.wait(0.2)
+                    break
+                pressed_since_last_release = False
+
+            left_was_pressed = left_pressed
             slider.draw()
             message.draw()
             parameters["win"].flip()

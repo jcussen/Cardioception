@@ -454,7 +454,7 @@ def getParameters(
         fullscr=fullscr,
         units="height",
     )
-    parameters["win"].mouseVisible = False
+    parameters["win"].mouseVisible = parameters["device"] == "mouse"
 
     ###############
     # Image loading
