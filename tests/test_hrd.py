@@ -21,6 +21,14 @@ class TestHRD(TestCase):
     def test_parameters(self):
         """Test parameters function"""
 
+        parameters = getParameters(setup="test", exteroception=True, stairType="psi")
+        parameters["win"].close()
+        shutil.rmtree(parameters["resultPath"])
+
+        assert len(parameters["Modality"]) == 60
+        assert sum(parameters["Modality"] == "Intero") == 40
+        assert sum(parameters["Modality"] == "Extero") == 20
+
         parameters = getParameters(
             setup="test", nTrials=80, exteroception=True, stairType="psi"
         )
@@ -30,6 +38,20 @@ class TestHRD(TestCase):
         assert sum(parameters["Modality"] == "Extero") == 40
         assert len(parameters["staircaseType"]) == 80
         assert np.all(parameters["staircaseType"] == "psi")
+
+        parameters = getParameters(
+            setup="test",
+            nInteroTrials=40,
+            nExteroTrials=20,
+            exteroception=True,
+            stairType="psi",
+        )
+        parameters["win"].close()
+        shutil.rmtree(parameters["resultPath"])
+
+        assert len(parameters["Modality"]) == 60
+        assert sum(parameters["Modality"] == "Intero") == 40
+        assert sum(parameters["Modality"] == "Extero") == 20
 
         parameters = getParameters(
             setup="test",

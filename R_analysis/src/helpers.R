@@ -448,11 +448,12 @@ plot_interval <- function(df, exteroPost = NA, interoPost = NA) {
     mutate(x = seq(0, nrow(.), length.out = (nrow(.))))
   dataline <- rbind(dataline1, dataline2)
   
-  # making trials go from 0-60 in each Modality
+  # making trial indices within each modality; modality counts can be unequal
   df <- df %>%
     group_by(Modality) %>%
     mutate(trials = 1:n()) %>%
     ungroup()
+  max_trials <- max(df$trials, na.rm = TRUE)
   # plot
   
   if (length(unique(df$Modality)) == 2) {
@@ -471,7 +472,7 @@ plot_interval <- function(df, exteroPost = NA, interoPost = NA) {
       facet_wrap(~Modality, nrow = 2, scale = "free") +
       # themes and text
       guides(color = "none", alpha = "none") +
-      scale_x_continuous(name = "Trials", limits = c(0, nrow(df) / 2), breaks = seq(0, nrow(df) / 2, by = 10)) +
+      scale_x_continuous(name = "Trials", limits = c(0, max_trials), breaks = seq(0, max_trials, by = 10)) +
       scale_y_continuous(name = expression(paste("Intensity  (", Delta, "BPM)"))) +
       theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
   }
@@ -628,20 +629,10 @@ get_mean_acc <- function(df) {
     summarize(mean_confidence = mean(Confidence, na.rm = T)) %>%
     rename(condition = Modality)
   correct <- df %>%
-    group_by(Modality, ResponseCorrect) %>%
-    summarize(n = as.numeric(n())) %>%
-    filter(ResponseCorrect == 1) %>%
-    rename(condition = Modality)
-  total <- df %>%
     group_by(Modality) %>%
-    summarize(n = n())
-  correct[1, 3] <- correct[1, 3] / total[1, 2]
-  correct[2, 3] <- correct[2, 3] / total[2, 2]
-  
-  correct$Accuracy <- correct$n
-  correct$n <- NULL
-  correct$ResponseCorrect <- NULL
-  df1 <- inner_join(correct, results)
+    summarize(Accuracy = mean(ResponseCorrect == 1, na.rm = T)) %>%
+    rename(condition = Modality)
+  df1 <- inner_join(correct, results, by = "condition")
   
   return(df1)
 }
@@ -1040,4 +1031,3 @@ transform_data_to_stan = function(data){
   
   return(data)
 }
-

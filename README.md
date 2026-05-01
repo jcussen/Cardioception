@@ -76,6 +76,8 @@ For the Nonin USB HRD workflow in this repository:
    `python scripts/run_hrd_nonin.py --serial-port <YOUR_SERIAL_PORT> --audio-backend pygame`
 
 The setup script installs compatible PsychoPy audio backend dependencies (`pygame`, `python-sounddevice`, `portaudio`) automatically.
+On Windows, use Anaconda Prompt and follow the Windows commands in `scripts/README.md`;
+the task itself accepts standard COM ports, for example `--serial-port COM5`.
 
 ## Dependencies
 

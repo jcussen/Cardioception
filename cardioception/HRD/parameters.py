@@ -22,7 +22,9 @@ def getParameters(
     stairType: str = "psi",
     exteroception: bool = True,
     catchTrials: float = 0.0,
-    nTrials: int = 120,
+    nTrials: int = 60,
+    nInteroTrials: Optional[int] = None,
+    nExteroTrials: Optional[int] = None,
     device: str = "mouse",
     screenNb: int = 0,
     fullscr: bool = True,
@@ -46,7 +48,9 @@ def getParameters(
     device : str
         Select how the participant provide responses. Can be `'mouse'` or `'keyboard'`.
     exteroception : bool
-        If `True`, the task will include an exteroceptive (half of the trials).
+        If `True`, the task will include an exteroceptive condition. The default
+        task uses 40 interoceptive and 20 exteroceptive trials. Other `nTrials`
+        values are split evenly unless explicit modality counts are provided.
     fullscr : bool
         If `True`, activate full screen mode.
     language : str
@@ -64,6 +68,14 @@ def getParameters(
            during the experiment. If `nTrials=50` and `exteroception=False`, the task
            contains 50 interoceptive trials. If `nTrials=50` and `exteroception=True`,
            the task contains 25 interoceptive trials and 25 exteroceptive trials.
+           The default `nTrials=60` uses 40 interoceptive and 20 exteroceptive
+           trials. To use another unequal split, pass `nInteroTrials` and
+           `nExteroTrials`.
+    nInteroTrials, nExteroTrials : int | None
+        Optional explicit trial counts for the interoceptive and exteroceptive
+        modalities. When both are provided and `exteroception=True`, `nTrials`
+        is set to their sum. When `exteroception=False`, `nInteroTrials` can be
+        used to override `nTrials` and `nExteroTrials` must be omitted or zero.
     participant : str
         Subject ID. Default is 'Participant'.
     catchTrials : float
@@ -104,7 +116,7 @@ def getParameters(
     HRcutOff : list
         Cut off for extreme heart rate values during recording.
     ExteroCondition : bool
-        If `True`, the task includes an exteroceptive (half of the trials).
+        If `True`, the task includes an exteroceptive condition.
     isi : tuple
         Range of the inter-stimulus interval (seconds). Should be in the form of (low,
         high). At each trial the value is generated using a uniform distribution
@@ -129,12 +141,8 @@ def getParameters(
         The monitor used to present the task (Psychopy parameter).
     nBreaking : int
         Number of trials to run before the break.
-    nConfidence : int
-        The number of trial with feedback during the tutorial phase (no
-        feedback).
-    nFeedback : int
-        The number of trial with feedback during the tutorial phase (no
-        confidence rating).
+    nPractice : int
+        The number of practice repetitions per modality during the tutorial.
     nFinger : str or None
         The finger number ("1", "2", "3", "4" or "5") where the participant
         decided to place the pulse oximeter (if relevant).
@@ -145,6 +153,9 @@ def getParameters(
            during the experiment. If `nTrials=50` and `exteroception=False`, the task
            contains 50 interoceptive trials. If `nTrials=50` and `exteroception=True`,
            the task contains 25 interoceptive trials and 25 exteroceptive trials.
+           The default `nTrials=60` uses 40 interoceptive and 20 exteroceptive
+           trials. To use another unequal split, pass `nInteroTrials` and
+           `nExteroTrials`.
     participant : str
         Subject ID. Default is 'Participant'.
     path : str
@@ -236,8 +247,9 @@ def getParameters(
     parameters["labelsRating"] = ["Guess", "Certain"]
     parameters["screenNb"] = screenNb
     parameters["monitor"] = "testMonitor"
-    parameters["nFeedback"] = 5
-    parameters["nConfidence"] = 8
+    parameters["nPractice"] = 1
+    parameters["nFeedback"] = 1
+    parameters["nConfidence"] = 1
     parameters["respMax"] = 5
     parameters["minRatingTime"] = 0.5
     parameters["maxRatingTime"] = 5
@@ -246,7 +258,6 @@ def getParameters(
     parameters["response_keys"] = {"More": "up", "Less": "down"}
     parameters["allowedKeys"] = list(parameters["response_keys"].values())
     parameters["mouse_response_buttons"] = mouse_response_buttons
-    parameters["nTrials"] = nTrials
     parameters["nBreaking"] = nBreaking
     parameters["lambdaIntero"] = []  # Save the history of lambda values
     parameters["lambdaExtero"] = []  # Save the history of lambda values
@@ -265,6 +276,46 @@ def getParameters(
     # Create Results directory if not already exists
     if not os.path.exists(parameters["resultPath"]):
         os.makedirs(parameters["resultPath"])
+
+    if exteroception is True:
+        if (nInteroTrials is None) and (nExteroTrials is None):
+            if nTrials == 60:
+                nInteroTrials = 40
+                nExteroTrials = 20
+            elif nTrials % 2 != 0:
+                raise ValueError(
+                    "nTrials must be even when exteroception=True unless "
+                    "nInteroTrials and nExteroTrials are provided"
+                )
+            else:
+                nInteroTrials = int(nTrials / 2)
+                nExteroTrials = int(nTrials / 2)
+        elif (nInteroTrials is None) or (nExteroTrials is None):
+            raise ValueError(
+                "nInteroTrials and nExteroTrials must both be provided for an "
+                "unequal exteroceptive split"
+            )
+        nInteroTrials = int(nInteroTrials)
+        nExteroTrials = int(nExteroTrials)
+        if nInteroTrials < 1 or nExteroTrials < 1:
+            raise ValueError("nInteroTrials and nExteroTrials must be positive")
+        nTrials = nInteroTrials + nExteroTrials
+    elif exteroception is False:
+        if nExteroTrials not in (None, 0):
+            raise ValueError(
+                "nExteroTrials must be omitted or zero when exteroception=False"
+            )
+        nInteroTrials = int(nTrials if nInteroTrials is None else nInteroTrials)
+        nExteroTrials = 0
+        if nInteroTrials < 1:
+            raise ValueError("nInteroTrials must be positive")
+        nTrials = nInteroTrials
+    else:
+        raise ValueError("exteroception should be a boolean")
+
+    parameters["nTrials"] = nTrials
+    parameters["nInteroTrials"] = nInteroTrials
+    parameters["nExteroTrials"] = nExteroTrials
 
     # Store posterior in a dictionary
     parameters["staircaisePosteriors"] = {}
@@ -285,15 +336,16 @@ def getParameters(
 
     # Create and randomize condition vectors separately for each staircase
     if exteroception is True:
-        # Create a modality vector containing nTrials/2 Intero and Extero conditions
+        # Create a modality vector containing the requested Intero and Extero counts.
         parameters["Modality"] = np.hstack(
-            [np.array(["Extero", "Intero"] * int(parameters["nTrials"] / 2))]
+            [
+                np.array(["Intero"] * parameters["nInteroTrials"]),
+                np.array(["Extero"] * parameters["nExteroTrials"]),
+            ]
         )
     elif exteroception is False:
-        # Create a modality vector containing nTrials/2 Intero and Extero conditions
+        # Create a modality vector containing Intero conditions only.
         parameters["Modality"] = np.array(["Intero"] * int(parameters["nTrials"]))
-    else:
-        raise ValueError("exteroception should be a boolean")
 
     # Vector encoding the type of trial (psi, up/down or catch)
     parameters["staircaseType"] = np.hstack(

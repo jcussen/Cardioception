@@ -111,7 +111,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--device", default="mouse", choices=["mouse", "keyboard"])
     parser.add_argument("--stair-type", default="psi", choices=["psi", "updown"])
-    parser.add_argument("--n-trials", type=int, default=120)
+    parser.add_argument(
+        "--n-trials",
+        type=int,
+        default=None,
+        help=(
+            "Total experimental trials. If omitted with exteroception enabled, "
+            "the task uses 40 interoceptive and 20 exteroceptive trials. If "
+            "provided without --intero-trials/--extero-trials, trials are split "
+            "evenly across modalities."
+        ),
+    )
+    parser.add_argument(
+        "--intero-trials",
+        type=int,
+        default=None,
+        help="Explicit number of interoceptive experimental trials.",
+    )
+    parser.add_argument(
+        "--extero-trials",
+        type=int,
+        default=None,
+        help="Explicit number of exteroceptive experimental trials.",
+    )
     parser.add_argument("--catch-trials", type=float, default=0.0)
     parser.add_argument("--break-every", type=int, default=20)
     parser.add_argument("--screen", type=int, default=0, help="Display index for PsychoPy")
@@ -168,6 +190,30 @@ def main() -> int:
         parser.error("--mouse-more-button and --mouse-less-button must be different")
 
     participant_id = str(args.subject_num)
+    n_trials = args.n_trials
+    n_intero_trials = args.intero_trials
+    n_extero_trials = args.extero_trials
+
+    if args.no_exteroception:
+        if n_extero_trials not in (None, 0):
+            parser.error("--extero-trials must be omitted or 0 with --no-exteroception")
+        n_trials = 60 if n_trials is None else n_trials
+        if n_intero_trials is None:
+            n_intero_trials = n_trials
+        n_extero_trials = 0
+    else:
+        if (n_intero_trials is None) and (n_extero_trials is None):
+            if n_trials is None:
+                n_intero_trials = 40
+                n_extero_trials = 20
+                n_trials = n_intero_trials + n_extero_trials
+            else:
+                n_intero_trials = None
+                n_extero_trials = None
+        elif (n_intero_trials is None) or (n_extero_trials is None):
+            parser.error("--intero-trials and --extero-trials must be provided together")
+        else:
+            n_trials = n_intero_trials + n_extero_trials
 
     # Prevent accidental overwrite if data already exists for this participant.
     result_path: Optional[str] = args.result_path
@@ -198,7 +244,9 @@ def main() -> int:
         stairType=args.stair_type,
         exteroception=not args.no_exteroception,
         catchTrials=args.catch_trials,
-        nTrials=args.n_trials,
+        nTrials=n_trials,
+        nInteroTrials=n_intero_trials,
+        nExteroTrials=n_extero_trials,
         device=args.device,
         screenNb=args.screen,
         fullscr=not args.windowed,

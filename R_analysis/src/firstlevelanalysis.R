@@ -119,13 +119,13 @@ single_sub_analysis <- function(df, interoPost = NA, exteroPost = NA, bayesian =
       theme_void()
   }
   if (is.na(exteroPost[1]) == TRUE && is.na(interoPost[1]) == FALSE) {
-    intervalplot <- plot_interval(df1, interoPost)
+    intervalplot <- plot_interval(df1, interoPost = interoPost)
   }
   if (is.na(exteroPost[1]) == FALSE && is.na(interoPost[1]) == TRUE) {
-    intervalplot <- plot_interval(df1, exteroPost)
+    intervalplot <- plot_interval(df1, exteroPost = exteroPost)
   }
   if (is.na(exteroPost[1]) == FALSE && is.na(interoPost[1]) == FALSE) {
-    intervalplot <- plot_interval(df1, exteroPost, interoPost)
+    intervalplot <- plot_interval(df1, exteroPost = exteroPost, interoPost = interoPost)
   }
   
   # get analysis plot (alpha vs probability of answering more)

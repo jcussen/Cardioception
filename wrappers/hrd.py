@@ -31,7 +31,9 @@ parameters = getParameters(
     language=g.data[5],
     stairType="psi",
     catchTrials=0.0,
-    nTrials=120,
+    nTrials=60,
+    nInteroTrials=40,
+    nExteroTrials=20,
     exteroception=True,
 )
 

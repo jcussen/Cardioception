@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from systole.detection import ppg_peaks
 
 from cardioception.input import digit_key_list, parse_digit_key
 
@@ -51,6 +52,92 @@ def _save_oximeter_recording(oxi_task, fname: str) -> None:
         output.to_csv(f"{fname}.txt", index=False)
 
 
+def _save_task_outputs(
+    parameters: dict, n_trial: Optional[int] = None, partial: bool = False
+) -> None:
+    """Persist task outputs for completed or gracefully aborted runs."""
+
+    if parameters["results_df"].empty:
+        print("No completed trials to save.")
+        return
+
+    result_suffix = "_partial_final" if partial else "_final"
+    signal_suffix = "_partial" if partial else ""
+    posterior_suffix = "_posterior_partial" if partial else "_posterior"
+    parameter_suffix = "_parameters_partial" if partial else "_parameters"
+    recording_suffix = "partial" if partial else "end"
+    n_completed = len(parameters["results_df"])
+    recording_index = n_completed if partial else n_trial
+
+    if partial:
+        print(f"Saving partial results after {n_completed} completed trials...")
+    else:
+        print("Saving final results in .txt file...")
+
+    parameters["results_df"].to_csv(
+        parameters["resultPath"]
+        + "/"
+        + parameters["participant"]
+        + parameters["session"]
+        + result_suffix
+        + ".txt",
+        index=False,
+    )
+
+    print("Saving PPG signal data frame...")
+    parameters["signal_df"].to_csv(
+        parameters["resultPath"]
+        + "/"
+        + parameters["participant"]
+        + "_signal"
+        + signal_suffix
+        + ".txt",
+        index=False,
+    )
+
+    _save_oximeter_recording(
+        parameters["oxiTask"],
+        f"{parameters['resultPath']}/{parameters['participant']}_ppg_{recording_index}_{recording_suffix}.txt",
+    )
+
+    print("Saving posterior distributions...")
+    for k in set(parameters["Modality"]):
+        np.save(
+            parameters["resultPath"]
+            + "/"
+            + parameters["participant"]
+            + k
+            + posterior_suffix
+            + ".npy",
+            np.array(parameters["staircaisePosteriors"][k]),
+        )
+
+    print("Saving Parameters in pickle...")
+    save_parameter = parameters.copy()
+    save_parameter["TaskCompleted"] = not partial
+    save_parameter["nCompletedTrials"] = n_completed
+    for k in [
+        "win",
+        "heartLogo",
+        "listenLogo",
+        "stairCase",
+        "oxiTask",
+        "myMouse",
+        "handSchema",
+        "pulseSchema",
+    ]:
+        save_parameter.pop(k, None)
+    with open(
+        save_parameter["resultPath"]
+        + "/"
+        + save_parameter["participant"]
+        + parameter_suffix
+        + ".pickle",
+        "wb",
+    ) as handle:
+        pickle.dump(save_parameter, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 def run(
     parameters: dict,
     confidenceRating: bool = True,
@@ -65,8 +152,7 @@ def run(
     confidenceRating : bool
         Whether the trial show include a confidence rating scale.
     runTutorial : bool
-        If `True`, will present a tutorial with 10 training trial with feedback
-        and 5 trials with confidence rating.
+        If `True`, will present a tutorial with one practice trial per modality.
     """
     from psychopy import core, visual
 
@@ -77,258 +163,220 @@ def run(
     if runTutorial is True:
         tutorial(parameters)
 
-    for nTrial, modality, trialType in zip(
-        range(parameters["nTrials"]),
-        parameters["Modality"],
-        parameters["staircaseType"],
-    ):
-
-        # Initialize variable
-        estimatedThreshold, estimatedSlope = None, None
-
-        # Wait for key press if this is the first trial
-        if nTrial == 0:
-
-            # Ask the participant to press default button to start
-            messageStart = visual.TextStim(
-                parameters["win"],
-                height=parameters["textSize"],
-                text=parameters["texts"]["textTaskStart"],
-            )
-            press = visual.TextStim(
-                parameters["win"],
-                height=parameters["textSize"],
-                pos=(0.0, -0.4),
-                text=parameters["texts"]["textNext"],
-            )
-            press.draw()
-            messageStart.draw()  # Show instructions
-            parameters["win"].flip()
-
-            waitInput(parameters)
-
-        # Next intensity value
-        if trialType == "updown":
-            print("... load UpDown staircase.")
-            thisTrial = parameters["stairCase"][modality].next()
-            stairCond = thisTrial[1]["label"]
-            alpha = thisTrial[0]
-        elif trialType == "psi":
-            print("... load psi staircase.")
-            alpha = parameters["stairCase"][modality].next()
-            stairCond = "psi"
-        elif trialType == "CatchTrial":
-            print("... load catch trial.")
-            # Select pseudo-random extrem value based on number
-            # of previous catch trial.
-            catchIdx = sum(
-                parameters["staircaseType"][:nTrial][
-                    parameters["Modality"][:nTrial] == modality
-                ]
-                == "CatchTrial"
-            )
-            alpha = np.array([-30, 10, -20, 20, -10, 30])[catchIdx % 6]
-            stairCond = "CatchTrial"
-
-        # Before trial triggers
-        parameters["oxiTask"].readInWaiting()
-        parameters["oxiTask"].channels["Channel_0"][-1] = 1  # Trigger
-
-        # Start trial
-        (
-            condition,
-            listenBPM,
-            responseBPM,
-            decision,
-            decisionRT,
-            confidence,
-            confidenceRT,
-            alpha,
-            isCorrect,
-            respProvided,
-            ratingProvided,
-            startTrigger,
-            soundTrigger,
-            responseMadeTrigger,
-            ratingStartTrigger,
-            ratingEndTrigger,
-            endTrigger,
-        ) = trial(
-            parameters,
-            alpha,
-            modality,
-            confidenceRating=confidenceRating,
-            nTrial=nTrial,
+    nTrial = None
+    try:
+        trial_iterator = zip(
+            range(parameters["nTrials"]),
+            parameters["Modality"],
+            parameters["staircaseType"],
         )
+        for nTrial, modality, trialType in trial_iterator:
 
-        # Check if response is 'More' or 'Less'
-        isMore = 1 if decision == "More" else 0
-        # Update the UpDown staircase if initialization trial
-        if trialType == "updown":
-            print("... update UpDown staircase.")
-            # Update the UpDown staircase
-            parameters["stairCase"][modality].addResponse(isMore)
-        elif trialType == "psi":
-            print("... update psi staircase.")
+            # Initialize variable
+            estimatedThreshold, estimatedSlope = None, None
 
-            # Update the Psi staircase with forced intensity value
-            # if impossible BPM was generated
-            if listenBPM + alpha < 15:
-                parameters["stairCase"][modality].addResponse(isMore, intensity=15)
-            elif listenBPM + alpha > 199:
-                parameters["stairCase"][modality].addResponse(isMore, intensity=199)
-            else:
+            # Wait for key press if this is the first trial
+            if nTrial == 0:
+
+                # Ask the participant to press default button to start
+                messageStart = visual.TextStim(
+                    parameters["win"],
+                    height=parameters["textSize"],
+                    text=parameters["texts"]["textTaskStart"],
+                )
+                press = visual.TextStim(
+                    parameters["win"],
+                    height=parameters["textSize"],
+                    pos=(0.0, -0.4),
+                    text=parameters["texts"]["textNext"],
+                )
+                press.draw()
+                messageStart.draw()  # Show instructions
+                parameters["win"].flip()
+
+                waitInput(parameters)
+
+            # Next intensity value
+            if trialType == "updown":
+                print("... load UpDown staircase.")
+                thisTrial = parameters["stairCase"][modality].next()
+                stairCond = thisTrial[1]["label"]
+                alpha = thisTrial[0]
+            elif trialType == "psi":
+                print("... load psi staircase.")
+                alpha = parameters["stairCase"][modality].next()
+                stairCond = "psi"
+            elif trialType == "CatchTrial":
+                print("... load catch trial.")
+                # Select pseudo-random extrem value based on number
+                # of previous catch trial.
+                catchIdx = sum(
+                    parameters["staircaseType"][:nTrial][
+                        parameters["Modality"][:nTrial] == modality
+                    ]
+                    == "CatchTrial"
+                )
+                alpha = np.array([-30, 10, -20, 20, -10, 30])[catchIdx % 6]
+                stairCond = "CatchTrial"
+
+            # Before trial triggers
+            parameters["oxiTask"].readInWaiting()
+            parameters["oxiTask"].channels["Channel_0"][-1] = 1  # Trigger
+
+            # Start trial
+            (
+                condition,
+                listenBPM,
+                responseBPM,
+                decision,
+                decisionRT,
+                confidence,
+                confidenceRT,
+                alpha,
+                isCorrect,
+                respProvided,
+                ratingProvided,
+                startTrigger,
+                soundTrigger,
+                responseMadeTrigger,
+                ratingStartTrigger,
+                ratingEndTrigger,
+                endTrigger,
+            ) = trial(
+                parameters,
+                alpha,
+                modality,
+                confidenceRating=confidenceRating,
+                nTrial=nTrial,
+            )
+
+            # Check if response is 'More' or 'Less'
+            isMore = 1 if decision == "More" else 0
+            # Update the UpDown staircase if initialization trial
+            if trialType == "updown":
+                print("... update UpDown staircase.")
+                # Update the UpDown staircase
                 parameters["stairCase"][modality].addResponse(isMore)
+            elif trialType == "psi":
+                print("... update psi staircase.")
 
-            # Store posteriors in list for each trials
-            parameters["staircaisePosteriors"][modality].append(
-                parameters["stairCase"][modality]._psi._probLambda[0, :, :, 0]
+                # Update the Psi staircase with forced intensity value
+                # if impossible BPM was generated
+                if listenBPM + alpha < 15:
+                    parameters["stairCase"][modality].addResponse(isMore, intensity=15)
+                elif listenBPM + alpha > 199:
+                    parameters["stairCase"][modality].addResponse(isMore, intensity=199)
+                else:
+                    parameters["stairCase"][modality].addResponse(isMore)
+
+                # Store posteriors in list for each trials
+                parameters["staircaisePosteriors"][modality].append(
+                    parameters["stairCase"][modality]._psi._probLambda[0, :, :, 0]
+                )
+
+                # Save estimated threshold and slope for each trials
+                estimatedThreshold, estimatedSlope = parameters["stairCase"][
+                    modality
+                ].estimateLambda()
+
+            print(
+                f"... Initial BPM: {listenBPM} - Staircase value: {alpha} "
+                f"- Response: {decision} ({isCorrect})"
             )
 
-            # Save estimated threshold and slope for each trials
-            estimatedThreshold, estimatedSlope = parameters["stairCase"][
-                modality
-            ].estimateLambda()
-
-        print(
-            f"... Initial BPM: {listenBPM} - Staircase value: {alpha} "
-            f"- Response: {decision} ({isCorrect})"
-        )
-
-        # Store results
-        parameters["results_df"] = pd.concat(
-            [
-                parameters["results_df"],
-                pd.DataFrame(
-                    {
-                        "TrialType": [trialType],
-                        "Condition": [condition],
-                        "Modality": [modality],
-                        "StairCond": [stairCond],
-                        "Decision": [decision],
-                        "DecisionRT": [decisionRT],
-                        "Confidence": [confidence],
-                        "ConfidenceRT": [confidenceRT],
-                        "Alpha": [alpha],
-                        "listenBPM": [listenBPM],
-                        "responseBPM": [responseBPM],
-                        "ResponseCorrect": [isCorrect],
-                        "DecisionProvided": [respProvided],
-                        "RatingProvided": [ratingProvided],
-                        "nTrials": [nTrial],
-                        "EstimatedThreshold": [estimatedThreshold],
-                        "EstimatedSlope": [estimatedSlope],
-                        "StartListening": [startTrigger],
-                        "StartDecision": [soundTrigger],
-                        "ResponseMade": [responseMadeTrigger],
-                        "RatingStart": [ratingStartTrigger],
-                        "RatingEnds": [ratingEndTrigger],
-                        "endTrigger": [endTrigger],
-                    }
-                ),
-            ],
-            ignore_index=True,
-        )
-
-        # Save the results at each iteration
-        parameters["results_df"].to_csv(
-            parameters["resultPath"]
-            + "/"
-            + parameters["participant"]
-            + parameters["session"]
-            + ".txt",
-            index=False,
-        )
-
-        # Breaks
-        if (nTrial % parameters["nBreaking"] == 0) & (nTrial != 0):
-            message = visual.TextStim(
-                parameters["win"],
-                height=parameters["textSize"],
-                text=parameters["texts"]["textBreaks"],
-            )
-            percRemain = round((nTrial / parameters["nTrials"]) * 100, 2)
-            remain = visual.TextStim(
-                parameters["win"],
-                height=parameters["textSize"],
-                pos=(0.0, 0.2),
-                text=f" ---- {percRemain} % ---- ",
-            )
-            remain.draw()
-            message.draw()
-            parameters["win"].flip()
-            _save_oximeter_recording(
-                parameters["oxiTask"],
-                f"{parameters['resultPath']}/{parameters['participant']}_ppg_{nTrial}.txt"
+            # Store results
+            parameters["results_df"] = pd.concat(
+                [
+                    parameters["results_df"],
+                    pd.DataFrame(
+                        {
+                            "TrialType": [trialType],
+                            "Condition": [condition],
+                            "Modality": [modality],
+                            "StairCond": [stairCond],
+                            "Decision": [decision],
+                            "DecisionRT": [decisionRT],
+                            "Confidence": [confidence],
+                            "ConfidenceRT": [confidenceRT],
+                            "Alpha": [alpha],
+                            "listenBPM": [listenBPM],
+                            "responseBPM": [responseBPM],
+                            "ResponseCorrect": [isCorrect],
+                            "DecisionProvided": [respProvided],
+                            "RatingProvided": [ratingProvided],
+                            "nTrials": [nTrial],
+                            "EstimatedThreshold": [estimatedThreshold],
+                            "EstimatedSlope": [estimatedSlope],
+                            "StartListening": [startTrigger],
+                            "StartDecision": [soundTrigger],
+                            "ResponseMade": [responseMadeTrigger],
+                            "RatingStart": [ratingStartTrigger],
+                            "RatingEnds": [ratingEndTrigger],
+                            "endTrigger": [endTrigger],
+                        }
+                    ),
+                ],
+                ignore_index=True,
             )
 
-            # Wait for participant input before continue
-            waitInput(parameters)
-
-            # Fixation cross
-            fixation = visual.GratingStim(
-                win=parameters["win"], mask="cross", size=0.1, pos=[0, 0], sf=0
+            # Save the results at each iteration
+            parameters["results_df"].to_csv(
+                parameters["resultPath"]
+                + "/"
+                + parameters["participant"]
+                + parameters["session"]
+                + ".txt",
+                index=False,
             )
-            fixation.draw()
-            parameters["win"].flip()
 
-            # Reset recording when ready
-            parameters["oxiTask"].setup()
-            parameters["oxiTask"].read(duration=1)
+            # Breaks
+            n_completed = nTrial + 1
+            if (n_completed % parameters["nBreaking"] == 0) & (
+                n_completed != parameters["nTrials"]
+            ):
+                message = visual.TextStim(
+                    parameters["win"],
+                    height=parameters["textSize"],
+                    text=parameters["texts"]["textBreaks"],
+                )
+                percent_completed = round((n_completed / parameters["nTrials"]) * 100, 2)
+                remain = visual.TextStim(
+                    parameters["win"],
+                    height=parameters["textSize"],
+                    pos=(0.0, 0.2),
+                    text=f"{percent_completed}% completed",
+                )
+                remain.draw()
+                message.draw()
+                parameters["win"].flip()
+                _save_oximeter_recording(
+                    parameters["oxiTask"],
+                    f"{parameters['resultPath']}/{parameters['participant']}_ppg_{n_completed}.txt",
+                )
 
-    # Save the final results
-    print("Saving final results in .txt file...")
-    parameters["results_df"].to_csv(
-        parameters["resultPath"]
-        + "/"
-        + parameters["participant"]
-        + parameters["session"]
-        + "_final.txt",
-        index=False,
-    )
+                # Wait for participant input before continue
+                waitInput(parameters)
 
-    # Save the final signals file
-    print("Saving PPG signal data frame...")
-    parameters["signal_df"].to_csv(
-        parameters["resultPath"] + "/" + parameters["participant"] + "_signal.txt",
-        index=False,
-    )
+                # Fixation cross
+                fixation = visual.GratingStim(
+                    win=parameters["win"], mask="cross", size=0.1, pos=[0, 0], sf=0
+                )
+                fixation.draw()
+                parameters["win"].flip()
 
-    # Save last pulse oximeter recording, if relevant
-    _save_oximeter_recording(
-        parameters["oxiTask"],
-        f"{parameters['resultPath']}/{parameters['participant']}_ppg_{nTrial}_end.txt"
-    )
+                # Reset recording when ready
+                parameters["oxiTask"].setup()
+                parameters["oxiTask"].read(duration=1)
+    except (KeyboardInterrupt, SystemExit):
+        if not parameters["results_df"].empty:
+            _save_task_outputs(parameters, n_trial=nTrial, partial=True)
+        raise
 
-    # Save posterios (if relevant)
-    print("Saving posterior distributions...")
-    for k in set(parameters["Modality"]):
-        np.save(
-            parameters["resultPath"]
-            + "/"
-            + parameters["participant"]
-            + k
-            + "_posterior.npy",
-            np.array(parameters["staircaisePosteriors"][k]),
-        )
+    if nTrial is None:
+        print("Task ended before any experimental trials were completed.")
+        return
 
-    # Save parameters
-    print("Saving Parameters in pickle...")
-    save_parameter = parameters.copy()
-    for k in ["win", "heartLogo", "listenLogo", "stairCase", "oxiTask"]:
-        del save_parameter[k]
-    if parameters["device"] == "mouse":
-        del save_parameter["myMouse"]
-    del save_parameter["handSchema"]
-    del save_parameter["pulseSchema"]
-    with open(
-        save_parameter["resultPath"]
-        + "/"
-        + save_parameter["participant"]
-        + "_parameters.pickle",
-        "wb",
-    ) as handle:
-        pickle.dump(save_parameter, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    _save_task_outputs(parameters, n_trial=nTrial, partial=False)
 
     # End of the task
     end = visual.TextStim(
@@ -474,26 +522,19 @@ def trial(
         # Recording
         while True:
 
-            # Read the raw PPG signal from the pulse oximeter
-            # You can adapt these line to work with a different setup provided that
-            # it can measure and create the new variable `bpm` (the average beats per
-            # minute over the 5 seconds of recording).
-            # signal = (
-            #     parameters["oxiTask"].read(duration=5.0).recording[-75 * 6 :]  # noqa
-            # )
-            # signal, peaks = ppg_peaks(signal, sfreq=75, new_sfreq=1000, clipping=True)
-            #
-            # # Get actual heart Rate
-            # # Only use the last 5 seconds of the recording
-            # bpm = 60000 / np.diff(np.where(peaks[-5000:])[0])
-
-
-            # for Nonin3231USB
-            # Only use the last 5 seconds of the recording
-            bpm = pd.Series(parameters["oxiTask"].read(duration=5.0).bpm)[-5:]
-            # use bpm as signal, Nonin3231USB gives no raw signal
-            signal = bpm
-
+            # Read the pulse oximeter using whichever systole API is active.
+            read_result = parameters["oxiTask"].read(duration=5.0)
+            if hasattr(read_result, "bpm"):
+                # Nonin3231USB exposes BPM values directly.
+                bpm = pd.Series(read_result.bpm)[-5:]
+                signal = bpm
+            else:
+                # Oximeter/test mode exposes raw PPG, so derive BPM from peaks.
+                signal = pd.Series(read_result.recording[-75 * 6 :])
+                _, peaks = ppg_peaks(
+                    signal, sfreq=75, new_sfreq=1000, clipping=True
+                )
+                bpm = pd.Series(60000 / np.diff(np.where(peaks[-5000:])[0]))
 
             print(f"... bpm: {[round(i) for i in bpm]}")
 
@@ -735,6 +776,123 @@ def waitInput(parameters: dict):
                 core.quit()
 
 
+def _draw_instruction_buttons(parameters: dict, allow_back: bool):
+    """Draw navigation controls for tutorial instruction pages."""
+
+    from psychopy import visual
+
+    controls = {}
+    button_width, button_height = 0.22, 0.08
+
+    next_box = visual.Rect(
+        parameters["win"],
+        width=button_width,
+        height=button_height,
+        pos=(0.28, -0.42),
+        lineColor="white",
+        fillColor=None,
+    )
+    next_text = visual.TextStim(
+        parameters["win"],
+        height=parameters["textSize"],
+        pos=next_box.pos,
+        text=parameters["texts"].get("textNextButton", "Next"),
+    )
+    next_box.draw()
+    next_text.draw()
+    controls["next"] = next_box
+
+    if allow_back:
+        back_box = visual.Rect(
+            parameters["win"],
+            width=button_width,
+            height=button_height,
+            pos=(-0.28, -0.42),
+            lineColor="white",
+            fillColor=None,
+        )
+        back_text = visual.TextStim(
+            parameters["win"],
+            height=parameters["textSize"],
+            pos=back_box.pos,
+            text=parameters["texts"].get("textBackButton", "Back"),
+        )
+        back_box.draw()
+        back_text.draw()
+        controls["back"] = back_box
+
+    return controls
+
+
+def _wait_for_instruction_navigation(
+    parameters: dict, controls: dict, allow_back: bool
+) -> str:
+    """Wait for an explicit next/back action on tutorial instruction pages."""
+
+    from psychopy import core, event
+
+    if parameters["device"] == "keyboard":
+        back_keys = ["left", "backspace"]
+        while True:
+            keys = event.getKeys()
+            if "escape" in keys:
+                print("User abort")
+                parameters["win"].close()
+                core.quit()
+            if allow_back and any(key in keys for key in back_keys):
+                return "back"
+            if parameters["startKey"] in keys or "right" in keys:
+                return "next"
+
+    if parameters["device"] == "mouse":
+        mouse = parameters["myMouse"]
+        while any(mouse.getPressed()):
+            keys = event.getKeys()
+            if "escape" in keys:
+                print("User abort")
+                parameters["win"].close()
+                core.quit()
+            core.wait(0.01)
+
+        mouse.clickReset()
+        while True:
+            keys = event.getKeys()
+            if "escape" in keys:
+                print("User abort")
+                parameters["win"].close()
+                core.quit()
+
+            buttons = mouse.getPressed()
+            if buttons[0]:
+                mouse_pos = mouse.getPos()
+                if allow_back and controls["back"].contains(mouse_pos):
+                    return "back"
+                if controls["next"].contains(mouse_pos):
+                    return "next"
+
+                while any(mouse.getPressed()):
+                    core.wait(0.01)
+
+    raise ValueError("device should be 'keyboard' or 'mouse'")
+
+
+def _run_instruction_pages(parameters: dict, draw_pages: list) -> None:
+    """Run tutorial instruction pages with explicit next/back navigation."""
+
+    page_idx = 0
+    while page_idx < len(draw_pages):
+        allow_back = page_idx > 0
+        draw_pages[page_idx]()
+        controls = _draw_instruction_buttons(parameters, allow_back)
+        parameters["win"].flip()
+
+        action = _wait_for_instruction_navigation(parameters, controls, allow_back)
+        if action == "back":
+            page_idx -= 1
+        else:
+            page_idx += 1
+
+
 def tutorial(parameters: dict):
     """Run tutorial before task run.
 
@@ -747,47 +905,29 @@ def tutorial(parameters: dict):
 
     from psychopy import core, event, visual
 
-    # Introduction
+    def add_page(pages, *stims):
+        def draw_page():
+            for stim in stims:
+                stim.draw()
+
+        pages.append(draw_page)
+
     intro = visual.TextStim(
         parameters["win"],
         height=parameters["textSize"],
         text=parameters["texts"]["Tutorial1"],
     )
-    press = visual.TextStim(
-        parameters["win"],
-        height=parameters["textSize"],
-        pos=(0.0, -0.4),
-        text=parameters["texts"]["textNext"],
-    )
-    intro.draw()
-    press.draw()
-    parameters["win"].flip()
-    core.wait(1)
-
-    waitInput(parameters)
-
-    # Pusle oximeter tutorial
     pulse1 = visual.TextStim(
         parameters["win"],
         height=parameters["textSize"],
         pos=(0.0, 0.3),
         text=parameters["texts"]["pulseTutorial1"],
     )
-    press = visual.TextStim(
-        parameters["win"],
-        height=parameters["textSize"],
-        pos=(0.0, -0.4),
-        text=parameters["texts"]["textNext"],
-    )
-    pulse1.draw()
-    parameters["pulseSchema"].draw()
-    press.draw()
-    parameters["win"].flip()
-    core.wait(1)
 
-    waitInput(parameters)
+    setup_pages = []
+    add_page(setup_pages, intro)
+    add_page(setup_pages, pulse1, parameters["pulseSchema"])
 
-    # Get finger number - Skip this part for the danish_children version (empty string)
     if parameters["texts"]["pulseTutorial2"]:
         pulse2 = visual.TextStim(
             parameters["win"],
@@ -801,13 +941,9 @@ def tutorial(parameters: dict):
             pos=(0.0, -0.2),
             text=parameters["texts"]["pulseTutorial3"],
         )
-        pulse2.draw()
-        pulse3.draw()
-        press.draw()
-        parameters["win"].flip()
-        core.wait(1)
+        add_page(setup_pages, pulse2, pulse3)
 
-        waitInput(parameters)
+    _run_instruction_pages(parameters, setup_pages)
 
     pulse4 = visual.TextStim(
         parameters["win"],
@@ -818,7 +954,6 @@ def tutorial(parameters: dict):
     pulse4.draw()
     parameters["handSchema"].draw()
     parameters["win"].flip()
-    core.wait(1)
 
     # Record number
     nFinger = ""
@@ -838,67 +973,30 @@ def tutorial(parameters: dict):
             core.wait(0.5)
             break
 
-    # Heartrate recording
     recording = visual.TextStim(
         parameters["win"],
         height=parameters["textSize"],
         pos=(0.0, 0.3),
         text=parameters["texts"]["Tutorial2"],
     )
-    recording.draw()
-    parameters["heartLogo"].draw()
-    press.draw()
-    parameters["win"].flip()
-    core.wait(1)
-
-    waitInput(parameters)
-
-    # Show reponse icon
     listenIcon = visual.TextStim(
         parameters["win"],
         height=parameters["textSize"],
         pos=(0.0, 0.3),
         text=parameters["texts"]["Tutorial3_icon"],
     )
-    parameters["heartLogo"].draw()
-    listenIcon.draw()
-    press.draw()
-    parameters["win"].flip()
-    core.wait(1)
-
-    waitInput(parameters)
-
-    # Response instructions
     listenResponse = visual.TextStim(
         parameters["win"],
         height=parameters["textSize"],
         pos=(0.0, 0.0),
         text=parameters["texts"]["Tutorial3_responses"],
     )
-    listenResponse.draw()
-    press.draw()
-    parameters["win"].flip()
-    core.wait(1)
 
-    waitInput(parameters)
+    task_pages = []
+    add_page(task_pages, recording, parameters["heartLogo"])
+    add_page(task_pages, listenIcon, parameters["heartLogo"])
+    add_page(task_pages, listenResponse)
 
-    # Run training trials with feedback
-    parameters["oxiTask"].setup().read(duration=2)
-    for i in range(parameters["nFeedback"]):
-
-        # Ramdom selection of condition
-        condition = np.random.choice(["More", "Less"])
-        alpha = -20.0 if condition == "Less" else 20.0
-
-        _ = trial(
-            parameters,
-            alpha,
-            "Intero",
-            feedback=True,
-            confidenceRating=False,
-        )
-
-    # If extero conditions required, show tutorial.
     if parameters["ExteroCondition"] is True:
         exteroText = visual.TextStim(
             parameters["win"],
@@ -906,108 +1004,59 @@ def tutorial(parameters: dict):
             pos=(0.0, -0.2),
             text=parameters["texts"]["Tutorial3bis"],
         )
-        exteroText.draw()
-        parameters["listenLogo"].draw()
-        press.draw()
-        parameters["win"].flip()
-        core.wait(1)
-
-        waitInput(parameters)
-
         exteroResponse = visual.TextStim(
             parameters["win"],
             height=parameters["textSize"],
             pos=(0.0, 0.0),
             text=parameters["texts"]["Tutorial3ter"],
         )
-        exteroResponse.draw()
-        press.draw()
-        parameters["win"].flip()
-        core.wait(1)
+        add_page(task_pages, exteroText, parameters["listenLogo"])
+        add_page(task_pages, exteroResponse)
 
-        waitInput(parameters)
-
-        # Run 10 training trials with feedback
-        parameters["oxiTask"].setup().read(duration=2)
-        for i in range(parameters["nFeedback"]):
-
-            # Ramdom selection of condition
-            condition = np.random.choice(["More", "Less"])
-            alpha = -20.0 if condition == "Less" else 20.0
-
-            _ = trial(
-                parameters,
-                alpha,
-                "Extero",
-                feedback=True,
-                confidenceRating=False,
-            )
-
-    ###################
-    # Confidence rating
-    ###################
     confidenceText = visual.TextStim(
         parameters["win"],
         height=parameters["textSize"],
         text=parameters["texts"]["Tutorial4"],
     )
-    confidenceText.draw()
-    press.draw()
-    parameters["win"].flip()
-    core.wait(1)
+    add_page(task_pages, confidenceText)
 
-    waitInput(parameters)
+    _run_instruction_pages(parameters, task_pages)
 
+    ###################
+    # Practice trials
+    ###################
     parameters["oxiTask"].setup().read(duration=2)
 
-    # Run n training trials with confidence rating
-    for i in range(parameters["nConfidence"]):
-        modality = "Intero"
-        condition = np.random.choice(["More", "Less"])
-        stim_intense = np.random.choice(np.array([1, 10, 30]))
-        alpha = -stim_intense if condition == "Less" else stim_intense
-        _ = trial(parameters, alpha, modality, confidenceRating=True)
-
-    # If extero conditions required, show tutorial.
+    practice_modalities = ["Intero"]
     if parameters["ExteroCondition"] is True:
-        # Run n training trials with confidence rating
-        for i in range(parameters["nConfidence"]):
-            modality = "Extero"
+        practice_modalities.append("Extero")
+
+    for modality in practice_modalities:
+        for _ in range(parameters.get("nPractice", 1)):
             condition = np.random.choice(["More", "Less"])
-            stim_intense = np.random.choice(np.array([1, 10, 30]))
-            alpha = -stim_intense if condition == "Less" else stim_intense
+            alpha = -20.0 if condition == "Less" else 20.0
             _ = trial(
                 parameters,
                 alpha,
                 modality,
+                feedback=True,
                 confidenceRating=True,
             )
 
-    #################
-    # End of tutorial
-    #################
     taskPresentation = visual.TextStim(
         parameters["win"],
         height=parameters["textSize"],
         text=parameters["texts"]["Tutorial5"],
     )
-    taskPresentation.draw()
-    press.draw()
-    parameters["win"].flip()
-    core.wait(1)
-    waitInput(parameters)
-
-    # Task
-    taskPresentation = visual.TextStim(
+    taskStart = visual.TextStim(
         parameters["win"],
         height=parameters["textSize"],
         text=parameters["texts"]["Tutorial6"],
     )
-    taskPresentation.draw()
-    press.draw()
-    parameters["win"].flip()
-    core.wait(1)
-    waitInput(parameters)
+    end_pages = []
+    add_page(end_pages, taskPresentation)
+    add_page(end_pages, taskStart)
+    _run_instruction_pages(parameters, end_pages)
 
 
 def responseDecision(

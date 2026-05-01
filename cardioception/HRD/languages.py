@@ -36,6 +36,8 @@ def english(device: str, setup: str, exteroception: bool) -> Dict[str, Collectio
         "textTaskStart": "The task is now going to start, get ready.",
         "textBreaks": f"Break. You can rest as long as you want. Just {btnext} when you want to resume the task.",
         "textNext": f"Please {btnext} to continue",
+        "textNextButton": "Next",
+        "textBackButton": "Back",
         "textWaitTrigger": "Waiting for fMRI trigger...",
         "Decision": {
             "Intero": """Are these beeps faster or slower than your heart?""",
@@ -159,6 +161,8 @@ def danish(device: str, setup: str, exteroception: bool) -> Dict[str, Collection
         "textTaskStart": "Opgaven begynder nu, gør dig klar.",
         "textBreaks": f"Pause. Du kan tage så lang en pause, som du har brug for. Bare {btnext} når du vil fortsætte opgaven.",
         "textNext": f"Venligst, {btnext} for at fortsætte",
+        "textNextButton": "Næste",
+        "textBackButton": "Tilbage",
         "textWaitTrigger": "Venter på fMRI-udløseren...",
         "Decision": {
             "Intero": """Er disse bib-lyde hurtigere eller langsommere end dit hjerte?""",
@@ -289,6 +293,8 @@ def danish_children(
         "textTaskStart": "Opgaven begynder nu, gør dig klar.",
         "textBreaks": f"Pause. Du kan tage så lang en pause, som du har brug for. Bare {btnext} når du vil fortsætte opgaven.",
         "textNext": f"Venligst, {btnext} for at fortsætte",
+        "textNextButton": "Næste",
+        "textBackButton": "Tilbage",
         "textWaitTrigger": "Venter på fMRI-udløseren...",
         "Decision": {
             "Intero": """Er disse bib-lyde hurtigere eller langsommere end dit hjerte?""",
@@ -393,6 +399,8 @@ def french(device: str, setup: str, exteroception: bool) -> Dict[str, Collection
         "textTaskStart": "La tâche va débuter, tenez-vous prêt.",
         "textBreaks": f"Pause. Vous pouvez vous reposer aussi longtemps que vous le souhaitez. Simplement {btnext} quand vous désirez rependre la tâche.",
         "textNext": f"S'il vous plaît {btnext} pour continuer",
+        "textNextButton": "Suivant",
+        "textBackButton": "Retour",
         "textWaitTrigger": "Attendez pour le déclencheur IRMf...",
         "Decision": {
             "Intero": """Est-ce que ces sons sont plus rapides ou plus lents que votre coeur?""",
