@@ -245,7 +245,9 @@ environment first using the instructions above.
 
 If data already exists for the same participant and session, the task stops to
 avoid overwriting data. Use the correct breathwork timing, or use a unique
-participant ID/session if you are intentionally repeating a run.
+participant ID/session if you are intentionally repeating a run. The error
+message lists the exact result folder and existing participant files to
+move/delete if the old run should be discarded.
 
 If the Nonin port is not detected automatically, run from the command line with
 `--serial-port`.

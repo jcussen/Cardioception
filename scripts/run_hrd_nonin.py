@@ -298,6 +298,62 @@ def nonin_startup_failure_message(serial_port: str, exc: BaseException) -> str:
     )
 
 
+def format_existing_paths(paths: list[Path], max_items: int = 12) -> list[str]:
+    if not paths:
+        return ["- No participant-specific files were found in this folder."]
+
+    sorted_paths = sorted(paths, key=lambda path: str(path))
+    lines = [f"- {path.resolve()}" for path in sorted_paths[:max_items]]
+    remaining = len(sorted_paths) - max_items
+    if remaining > 0:
+        lines.append(f"- ... and {remaining} more")
+    return lines
+
+
+def duplicate_data_message(
+    participant_id: str,
+    session: str,
+    output_dir: Path,
+    participant_files: list[Path],
+    custom_result_path: bool,
+) -> str:
+    lines = [
+        "",
+        "Existing HRD data found",
+        "-----------------------",
+        f"Participant ID: {participant_id}",
+        f"Session: {session}",
+        f"Result folder: {output_dir.resolve()}",
+        "",
+        "Existing participant files/folders:",
+        *format_existing_paths(participant_files),
+        "",
+        "The task stopped to avoid overwriting existing data.",
+        "",
+        "To continue safely:",
+        "- Choose a new participant ID or session, or",
+    ]
+
+    if custom_result_path:
+        lines.extend(
+            [
+                "- Move/delete the listed participant files from the custom "
+                "result folder if this exact run should be repeated.",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "- Move/delete this result folder if this exact run should be "
+                "repeated:",
+                f"  {output_dir.resolve()}",
+            ]
+        )
+
+    lines.append("Only remove old data after confirming it is no longer needed.")
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run Heart Rate Discrimination with Nonin3231USB (behavioral setup)."
@@ -458,11 +514,14 @@ def main() -> int:
         if participant_files:
             parser.exit(
                 1,
-                (
-                    f"data already exists for participant {participant_id} "
-                    f"session {session}, please provide a unique participant ID "
-                    "or session\n"
-                ),
+                duplicate_data_message(
+                    participant_id=participant_id,
+                    session=session,
+                    output_dir=output_dir,
+                    participant_files=participant_files,
+                    custom_result_path=result_path is not None,
+                )
+                + "\n",
             )
 
     try:
