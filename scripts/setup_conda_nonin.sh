@@ -40,11 +40,12 @@ conda run --prefix "$ENV_PREFIX" python -m pip install \
   "tabulate>=0.8.9" \
   "watermark>=2.5.0"
 
-echo "Installing Cardioception fork in editable mode..."
+echo "Installing Cardioception HRD in editable mode..."
 conda run --prefix "$ENV_PREFIX" python -m pip install -e "$REPO_ROOT" --no-deps
 
 echo "Done."
 echo "Activate with:"
 echo "  conda activate \"$ENV_PREFIX\""
-echo "Run HRD with Nonin via:"
-echo "  python \"$REPO_ROOT/scripts/run_hrd_nonin.py\" --serial-port <YOUR_PORT>"
+echo "Run HRD by double-clicking Run_HRD.command or Run_HRD.bat."
+echo "Or run from the command line with:"
+echo "  python \"$REPO_ROOT/scripts/run_hrd_nonin.py\""

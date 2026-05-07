@@ -285,11 +285,20 @@ def run(
             )
 
             # Store results
+            trial_metadata = {}
+            if "breathworkPhaseCode" in parameters:
+                trial_metadata["BreathworkPhaseCode"] = [
+                    parameters["breathworkPhaseCode"]
+                ]
+            if "breathworkPhase" in parameters:
+                trial_metadata["BreathworkPhase"] = [parameters["breathworkPhase"]]
+
             parameters["results_df"] = pd.concat(
                 [
                     parameters["results_df"],
                     pd.DataFrame(
                         {
+                            **trial_metadata,
                             "TrialType": [trialType],
                             "Condition": [condition],
                             "Modality": [modality],

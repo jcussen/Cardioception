@@ -5,19 +5,141 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
-from psychopy import prefs
-from psychopy.sound import Sound as PsychoPySound
-from serial.tools import list_ports
 
-from cardioception.HRD.parameters import getParameters
-from cardioception.HRD.task import run
+DEFAULT_SESSION = "HRD"
+BREATHWORK_PHASES = {
+    "1": ("before", "1 - Before breathwork"),
+    "2": ("after", "2 - After breathwork"),
+}
+BREATHWORK_PHASE_ALIASES = {
+    "1": "1",
+    "before": "1",
+    "before breathwork": "1",
+    "pre": "1",
+    "pre-breathwork": "1",
+    "pre_breathwork": "1",
+    "pre breathwork": "1",
+    "2": "2",
+    "after": "2",
+    "after breathwork": "2",
+    "post": "2",
+    "post-breathwork": "2",
+    "post_breathwork": "2",
+    "post breathwork": "2",
+}
+
+
+class NoninConnectionError(RuntimeError):
+    """Raised when the Nonin pulse oximeter cannot be found or opened."""
+
+
+def validate_participant_id(value: object) -> str:
+    participant = "" if value is None else str(value).strip()
+    if not participant:
+        raise ValueError("Participant ID is required.")
+    if any(char in participant for char in ("/", "\\", ":", "*", "?", "[", "]")):
+        raise ValueError(
+            "Participant ID contains characters that are unsafe for filenames."
+        )
+    return participant
+
+
+def normalize_breathwork_phase(value: Optional[str]) -> str:
+    if value is None:
+        raise ValueError("Breathwork timing is required.")
+
+    phase = str(value).strip().lower()
+    phase = phase.split("-", 1)[0].strip()
+    if phase in BREATHWORK_PHASE_ALIASES:
+        return BREATHWORK_PHASE_ALIASES[phase]
+
+    raise ValueError("Breathwork timing must be 1 (before) or 2 (after).")
+
+
+def build_session_label(base_session: str, breathwork_phase_code: str) -> str:
+    return f"{base_session}{breathwork_phase_code}"
+
+
+def prompt_run_details(
+    default_participant: Optional[str],
+    default_phase_code: Optional[str],
+) -> Tuple[str, str]:
+    """Ask the RA for startup fields that should not require CLI entry."""
+    from psychopy import gui
+
+    phase_choices = [BREATHWORK_PHASES["1"][1], BREATHWORK_PHASES["2"][1]]
+    initial_phase = BREATHWORK_PHASES.get(
+        default_phase_code or "", BREATHWORK_PHASES["1"]
+    )[1]
+    error_message = None
+
+    while True:
+        dialog = gui.Dlg(title="HRD setup")
+        if error_message:
+            dialog.addText(error_message)
+        dialog.addField("Participant ID:", initial=default_participant or "")
+        dialog.addField(
+            "Breathwork timing:",
+            choices=phase_choices,
+            initial=initial_phase,
+        )
+        data = dialog.show()
+
+        if not dialog.OK:
+            raise SystemExit("HRD setup cancelled\n")
+
+        default_participant = str(data[0]).strip()
+        try:
+            initial_phase = BREATHWORK_PHASES[normalize_breathwork_phase(data[1])][1]
+        except ValueError:
+            pass
+
+        try:
+            participant_id = validate_participant_id(data[0])
+            phase_code = normalize_breathwork_phase(data[1])
+        except ValueError as exc:
+            error_message = str(exc)
+        else:
+            return participant_id, phase_code
+
+
+def resolve_run_details(args: argparse.Namespace) -> Tuple[str, str, str, str]:
+    participant_id = None
+    phase_code = None
+    validation_errors = []
+
+    if args.subject_num is not None:
+        try:
+            participant_id = validate_participant_id(args.subject_num)
+        except ValueError as exc:
+            validation_errors.append(str(exc))
+
+    if args.breathwork_phase is not None:
+        try:
+            phase_code = normalize_breathwork_phase(args.breathwork_phase)
+        except ValueError as exc:
+            validation_errors.append(str(exc))
+
+    if validation_errors:
+        raise ValueError("; ".join(validation_errors))
+
+    if participant_id is None or phase_code is None:
+        participant_id, phase_code = prompt_run_details(participant_id, phase_code)
+
+    phase_name = BREATHWORK_PHASES[phase_code][0]
+    session = build_session_label(args.session, phase_code)
+    return participant_id, phase_code, phase_name, session
 
 
 def configure_audio_backend(backend: str) -> None:
     """Force a PsychoPy audio backend with explicit dependency checks."""
+    from psychopy import prefs
+    from psychopy.sound import Sound as PsychoPySound
+
     if backend == "pygame":
         if importlib.util.find_spec("pygame") is None:
             raise RuntimeError(
@@ -39,22 +161,66 @@ def configure_audio_backend(backend: str) -> None:
     print(f"Using PsychoPy audio backend: {PsychoPySound.backend}")
 
 
+def list_serial_ports() -> list[tuple[str, str]]:
+    """Return visible serial ports as (device, description) pairs."""
+    from serial.tools import list_ports
+
+    ports = []
+    for port in list_ports.comports():
+        details = []
+        for value in (port.description, port.manufacturer, port.product, port.hwid):
+            value = str(value or "").strip()
+            if value and value not in details:
+                details.append(value)
+        ports.append((str(port.device or ""), "; ".join(details)))
+    return ports
+
+
+def format_serial_port_list(ports: list[tuple[str, str]]) -> list[str]:
+    if not ports:
+        return ["- No serial ports are currently visible to Python."]
+    return [
+        f"- {device}" + (f" ({description})" if description else "")
+        for device, description in ports
+    ]
+
+
+def nonin_help_message(summary: str, ports: list[tuple[str, str]]) -> str:
+    lines = [
+        "",
+        "Nonin pulse oximeter connection problem",
+        "-----------------------------------------",
+        summary,
+        "",
+        "What to check:",
+        "- Confirm the Nonin USB device is plugged in.",
+        "- Unplug and reconnect the Nonin device, then run the task again.",
+        "- Close any other program that may be using the same serial port.",
+        "- On Windows, check Device Manager for the COM port.",
+        "- On macOS, check for /dev/cu.usb* or /dev/tty.usb* ports.",
+        "- If you know the port, run with --serial-port, for example:",
+        "  python scripts/run_hrd_nonin.py --serial-port COM5",
+        "  python scripts/run_hrd_nonin.py --serial-port /dev/cu.usbmodemXXXX",
+        "",
+        "Serial ports currently visible:",
+        *format_serial_port_list(ports),
+    ]
+    return "\n".join(lines)
+
+
 def detect_nonin_port(explicit_port: Optional[str]) -> str:
     """Resolve serial port from explicit argument or auto-detection."""
     if explicit_port:
         return explicit_port
 
     candidates = []
-    for port in list_ports.comports():
+    ports = list_serial_ports()
+    for device, description in ports:
         fields = [
-            str(port.device or ""),
-            str(port.description or ""),
-            str(port.manufacturer or ""),
-            str(port.product or ""),
-            str(port.hwid or ""),
+            device,
+            description,
         ]
         meta = " ".join(fields).lower()
-        device = str(port.device or "")
         device_l = device.lower()
 
         if (
@@ -74,13 +240,61 @@ def detect_nonin_port(explicit_port: Optional[str]) -> str:
         print(f"Auto-detected serial port: {resolved}")
         return resolved
     if len(candidates) == 0:
-        raise RuntimeError(
-            "Could not auto-detect Nonin serial port. Please pass --serial-port."
+        raise NoninConnectionError(
+            nonin_help_message(
+                "The task could not auto-detect a Nonin serial port.",
+                ports,
+            )
         )
-    raise RuntimeError(
-        "Multiple possible serial ports found: "
-        + ", ".join(candidates)
-        + ". Please pass --serial-port."
+    raise NoninConnectionError(
+        nonin_help_message(
+            "Multiple possible Nonin serial ports were found: "
+            + ", ".join(candidates)
+            + ". Please rerun with the correct --serial-port value.",
+            ports,
+        )
+    )
+
+
+def is_likely_nonin_exception(exc: BaseException) -> bool:
+    try:
+        from serial import SerialException
+    except Exception:
+        serial_exception_types = ()
+    else:
+        serial_exception_types = (SerialException,)
+
+    current: Optional[BaseException] = exc
+    while current is not None:
+        if serial_exception_types and isinstance(current, serial_exception_types):
+            return True
+        message = str(current).lower()
+        if any(
+            marker in message
+            for marker in (
+                "serial",
+                "port",
+                "nonin",
+                "device",
+                "resource busy",
+                "permission",
+                "timeout",
+                "timed out",
+                "could not open",
+            )
+        ):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def nonin_startup_failure_message(serial_port: str, exc: BaseException) -> str:
+    return nonin_help_message(
+        (
+            f"The task found serial port {serial_port}, but could not start "
+            f"reading from the Nonin device.\n\nUnderlying error: {exc}"
+        ),
+        list_serial_ports(),
     )
 
 
@@ -90,11 +304,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--subject-num",
-        required=True,
-        type=int,
-        help="Numeric subject identifier (required, e.g. 12).",
+        "--participant-id",
+        dest="subject_num",
+        default=None,
+        help="Participant ID. If omitted, a startup dialog asks for it.",
     )
-    parser.add_argument("--session", default="HRD", help="Session label")
+    parser.add_argument(
+        "--breathwork-phase",
+        default=None,
+        help=(
+            "Breathwork timing: 1=before breathwork, 2=after breathwork. "
+            "If omitted, a startup dialog asks for it."
+        ),
+    )
+    parser.add_argument(
+        "--session",
+        default=DEFAULT_SESSION,
+        help="Base session label. The breathwork timing code is appended.",
+    )
     parser.add_argument(
         "--serial-port",
         default=None,
@@ -189,7 +416,11 @@ def main() -> int:
     if args.mouse_more_button == args.mouse_less_button:
         parser.error("--mouse-more-button and --mouse-less-button must be different")
 
-    participant_id = str(args.subject_num)
+    try:
+        participant_id, phase_code, phase_name, session = resolve_run_details(args)
+    except ValueError as exc:
+        parser.error(str(exc))
+
     n_trials = args.n_trials
     n_intero_trials = args.intero_trials
     n_extero_trials = args.extero_trials
@@ -220,7 +451,7 @@ def main() -> int:
     output_dir = (
         Path(result_path)
         if result_path is not None
-        else Path.cwd() / "data" / f"{participant_id}{args.session}"
+        else Path.cwd() / "data" / f"{participant_id}{session}"
     )
     if output_dir.exists():
         participant_files = list(output_dir.glob(f"{participant_id}*"))
@@ -228,36 +459,50 @@ def main() -> int:
             parser.exit(
                 1,
                 (
-                    f"data already exists for participant {args.subject_num}, "
-                    "please provide unique subject number\n"
+                    f"data already exists for participant {participant_id} "
+                    f"session {session}, please provide a unique participant ID "
+                    "or session\n"
                 ),
             )
 
-    configure_audio_backend(args.audio_backend)
-    serial_port = detect_nonin_port(args.serial_port)
+    try:
+        configure_audio_backend(args.audio_backend)
+        serial_port = detect_nonin_port(args.serial_port)
+    except NoninConnectionError as exc:
+        parser.exit(2, f"{exc}\n")
 
-    parameters = getParameters(
-        participant=participant_id,
-        session=args.session,
-        serialPort=serial_port,
-        setup="behavioral",
-        stairType=args.stair_type,
-        exteroception=not args.no_exteroception,
-        catchTrials=args.catch_trials,
-        nTrials=n_trials,
-        nInteroTrials=n_intero_trials,
-        nExteroTrials=n_extero_trials,
-        device=args.device,
-        screenNb=args.screen,
-        fullscr=not args.windowed,
-        nBreaking=args.break_every,
-        resultPath=result_path,
-        language=args.language,
-        mouse_response_buttons={
-            "More": args.mouse_more_button,
-            "Less": args.mouse_less_button,
-        },
-    )
+    from cardioception.HRD.parameters import getParameters
+    from cardioception.HRD.task import run
+
+    try:
+        parameters = getParameters(
+            participant=participant_id,
+            session=session,
+            serialPort=serial_port,
+            setup="behavioral",
+            stairType=args.stair_type,
+            exteroception=not args.no_exteroception,
+            catchTrials=args.catch_trials,
+            nTrials=n_trials,
+            nInteroTrials=n_intero_trials,
+            nExteroTrials=n_extero_trials,
+            device=args.device,
+            screenNb=args.screen,
+            fullscr=not args.windowed,
+            nBreaking=args.break_every,
+            resultPath=result_path,
+            language=args.language,
+            mouse_response_buttons={
+                "More": args.mouse_more_button,
+                "Less": args.mouse_less_button,
+            },
+        )
+    except Exception as exc:
+        if is_likely_nonin_exception(exc):
+            parser.exit(2, f"{nonin_startup_failure_message(serial_port, exc)}\n")
+        raise
+    parameters["breathworkPhaseCode"] = phase_code
+    parameters["breathworkPhase"] = phase_name
 
     try:
         run(
@@ -265,6 +510,11 @@ def main() -> int:
             confidenceRating=not args.no_confidence,
             runTutorial=not args.skip_tutorial,
         )
+    except Exception as exc:
+        if is_likely_nonin_exception(exc):
+            print(nonin_startup_failure_message(serial_port, exc), file=sys.stderr)
+            return 2
+        raise
     finally:
         if "win" in parameters and parameters["win"] is not None:
             parameters["win"].close()
