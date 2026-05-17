@@ -1,9 +1,37 @@
 # Authors: Nicolas Legrand and Micah Allen, 2019-2022. Contact: micah@cfin.au.dk
 # Maintained by the Embodied Computation Group, Aarhus University
-from typing import Collection, Dict
+from typing import Collection, Dict, Optional
 
 
-def english(device: str, setup: str, exteroception: bool) -> Dict[str, Collection[str]]:
+MOUSE_BUTTON_LABELS = {
+    "english": {
+        "left": "LEFT mouse button",
+        "middle": "MIDDLE mouse button",
+        "right": "RIGHT mouse button",
+    },
+    "danish": {
+        "left": "VENSTRE museknap",
+        "middle": "MIDTERSTE museknap",
+        "right": "HØJRE museknap",
+    },
+    "french": {
+        "left": "clic GAUCHE",
+        "middle": "clic du MILIEU",
+        "right": "clic DROIT",
+    },
+}
+
+
+def mouse_button_label(button: str, language: str) -> str:
+    return MOUSE_BUTTON_LABELS[language][button]
+
+
+def english(
+    device: str,
+    setup: str,
+    exteroception: bool,
+    mouse_response_buttons: Optional[dict] = None,
+) -> Dict[str, Collection[str]]:
     """Create the text dictionary with instruction in Danish
 
     Parameters
@@ -46,10 +74,17 @@ def english(device: str, setup: str, exteroception: bool) -> Dict[str, Collectio
         "Confidence": """How confident are you in your choice?""",
     }
 
+    if mouse_response_buttons is None:
+        mouse_response_buttons = {"Less": "left", "More": "right"}
+
     if device == "keyboard":
+        moreResp = "UP key"
+        lessResp = "DOWN key"
         texts["responseText"] = "Use DOWN key for slower - UP key for faster."
     elif device == "mouse":
-        texts["responseText"] = "Use LEFT button for slower - RIGHT button for faster."
+        moreResp = mouse_button_label(mouse_response_buttons["More"], "english")
+        lessResp = mouse_button_label(mouse_response_buttons["Less"], "english")
+        texts["responseText"] = f"Use {lessResp} for slower - {moreResp} for faster."
 
     texts[
         "Tutorial1"
@@ -77,8 +112,6 @@ You will only be allowed to focus on the internal sensations of your heartbeats,
         "Tutorial2"
     ] = "When you see this icon, try to focus on your heartbeat for 5 seconds. Try not to move, as we are recording your pulse in this period"
 
-    moreResp = "UP key" if device == "keyboard" else "RIGHT mouse button"
-    lessResp = "DOWN key" if device == "keyboard" else "LEFT mouse button"
     texts[
         "Tutorial3_icon"
     ] = """After this 'heart listening' period, you will see the same icon and hear a series of beeps."""
@@ -127,7 +160,12 @@ Otherwise, you can continue to the main task."""
     return texts
 
 
-def danish(device: str, setup: str, exteroception: bool) -> Dict[str, Collection[str]]:
+def danish(
+    device: str,
+    setup: str,
+    exteroception: bool,
+    mouse_response_buttons: Optional[dict] = None,
+) -> Dict[str, Collection[str]]:
     """Create the text dictionary with instruction in Danish
 
     Parameters
@@ -171,14 +209,21 @@ def danish(device: str, setup: str, exteroception: bool) -> Dict[str, Collection
         "Confidence": """Hvor sikker er du på dit svar?""",
     }
 
+    if mouse_response_buttons is None:
+        mouse_response_buttons = {"Less": "left", "More": "right"}
+
     if device == "keyboard":
+        moreResp = "OP tasten"
+        lessResp = "NED tasten"
         texts[
             "responseText"
         ] = "Brug NED tasten for langsommere - OP tasten for hurtigere."
     elif device == "mouse":
+        moreResp = mouse_button_label(mouse_response_buttons["More"], "danish")
+        lessResp = mouse_button_label(mouse_response_buttons["Less"], "danish")
         texts[
             "responseText"
-        ] = "Brug VENSTRE museknap for langsommere - HØJRE museknap for hurtigere."
+        ] = f"Brug {lessResp} for langsommere - {moreResp} for hurtigere."
 
     texts[
         "Tutorial1"
@@ -206,8 +251,6 @@ Du må kun fokusere på din indre følelse af din hjerterytme. Du må altså ikk
         "Tutorial2"
     ] = "Når du ser dette ikon, forsøg da at fokusere på din hjerterytme i 5 sekunder. Prøv ikke at bevæge dig, da vi registrere din puls i dette tidsrum"
 
-    moreResp = "OP tasten" if device == "keyboard" else "HØJRE mussetast"
-    lessResp = "NED tasten" if device == "keyboard" else "VENSTRE mussetast"
     texts[
         "Tutorial3_icon"
     ] = """Efter tidsrummet hvor du har forsøgt at mærke dit hjerte, vil du se det samme ikon og høre en række bib-lyde."""
@@ -257,7 +300,10 @@ Ellers kan du fortsætte til hovedopgaven."""
 
 
 def danish_children(
-    device: str, setup: str, exteroception: bool
+    device: str,
+    setup: str,
+    exteroception: bool,
+    mouse_response_buttons: Optional[dict] = None,
 ) -> Dict[str, Collection[str]]:
     """Create the text dictionary with instruction in Danish (simplified version for
     children).
@@ -303,14 +349,21 @@ def danish_children(
         "Confidence": """Hvor sikker er du på dit svar?""",
     }
 
+    if mouse_response_buttons is None:
+        mouse_response_buttons = {"Less": "left", "More": "right"}
+
     if device == "keyboard":
+        moreResp = "OP tasten"
+        lessResp = "NED tasten"
         texts[
             "responseText"
         ] = "Brug NED tasten for langsommere - OP tasten for hurtigere."
     elif device == "mouse":
+        moreResp = mouse_button_label(mouse_response_buttons["More"], "danish")
+        lessResp = mouse_button_label(mouse_response_buttons["Less"], "danish")
         texts[
             "responseText"
-        ] = "Brug VENSTRE museknap for langsommere - HØJRE museknap for hurtigere."
+        ] = f"Brug {lessResp} for langsommere - {moreResp} for hurtigere."
 
     texts[
         "Tutorial1"
@@ -330,8 +383,6 @@ def danish_children(
         "Tutorial2"
     ] = "Når du ser dette ikon, forsøg da at fokusere på din indre puls i 5 sekunder. Prøv ikke at bevæge dig, da vi måler din puls i dette tidsrum"
 
-    moreResp = "OP tasten" if device == "keyboard" else "HØJRE mussetast"
-    lessResp = "NED tasten" if device == "keyboard" else "VENSTRE mussetast"
     texts[
         "Tutorial3_icon"
     ] = """Efter du har forsøgt at mærke din indre puls, vil du se det samme ikon og høre en række bib-lyde."""
@@ -362,7 +413,12 @@ Ellers kan du fortsætte til opgaven."""
     return texts
 
 
-def french(device: str, setup: str, exteroception: bool) -> Dict[str, Collection[str]]:
+def french(
+    device: str,
+    setup: str,
+    exteroception: bool,
+    mouse_response_buttons: Optional[dict] = None,
+) -> Dict[str, Collection[str]]:
     """Create the text dictionary with instruction in french
 
     Parameters
@@ -409,14 +465,21 @@ def french(device: str, setup: str, exteroception: bool) -> Dict[str, Collection
         "Confidence": """Etes-vous sûr de votre choix?""",
     }
 
+    if mouse_response_buttons is None:
+        mouse_response_buttons = {"Less": "left", "More": "right"}
+
     if device == "keyboard":
+        moreResp = "flèche vers le HAUT"
+        lessResp = "flèche vers le BAS"
         texts[
             "responseText"
         ] = "Appuyez sur la flèche vers le BAS pour plus lent - vers le HAUT pour plus rapide."
     elif device == "mouse":
+        moreResp = mouse_button_label(mouse_response_buttons["More"], "french")
+        lessResp = mouse_button_label(mouse_response_buttons["Less"], "french")
         texts[
             "responseText"
-        ] = "Appuyez sur le clic GAUCHE pour plus lent - clic DROIT pour plus rapide."
+        ] = f"Appuyez sur le {lessResp} pour plus lent - {moreResp} pour plus rapide."
 
     texts[
         "Tutorial1"
@@ -444,8 +507,6 @@ Vous serez uniquement autorisés à vous concentrer sur vos sensations internes 
         "Tutorial2"
     ] = "Quand vous voyez cette icône, essayez de vous concentrer sur vos battements cardiaques durant 5 secondes. Essayez de ne pas bouger, car nous enregistrons votre pouls durant cette période."
 
-    moreResp = "flèche vers le HAUT" if device == "keyboard" else "clic DROIT"
-    lessResp = "flèche vers le BAS" if device == "keyboard" else "clic GAUCHE"
     texts[
         "Tutorial3_icon"
     ] = """Après cette période d'écoute du coeur, vous verrez la même icône and entendrez une série de bips."""

@@ -4,6 +4,7 @@ channels:
 dependencies:
   - python=3.11
   - pip
+  - tk
   - numpy=2.2.0
   - scipy>=1.13,<1.15
   - pandas>=1.5

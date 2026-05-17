@@ -1,43 +1,28 @@
 # Authors: Nicolas Legrand and Micah Allen, 2019-2022. Contact: micah@cfin.au.dk
 # Maintained by the Embodied Computation Group, Aarhus University
 
+"""Compatibility wrapper for the breathwork HRD launcher.
 
-from psychopy import gui
+The maintained Nonin HRD entry point lives in scripts/run_hrd_nonin.py. Keeping
+this wrapper as a redirect avoids a second PsychoPy GUI startup path.
+"""
 
-from cardioception.HRD.parameters import getParameters
-from cardioception.HRD.task import run
+from __future__ import annotations
 
-################################
-# Heart rate Discrimination task
-################################
+import importlib.util
+from pathlib import Path
 
-# Create a GUI and ask for high-evel experiment parameters
-g = gui.Dlg()
-g.addField("participant", initial="Participant")
-g.addField("session", initial="HRD")
-g.addField("Serial Port:", initial="COM5")
-g.addField("Setup:", initial="behavioral", choices=["behavioral", "test"])
-g.addField("Device:", initial="mouse", choices=["mouse", "keyboard"])
-g.addField("Language:", initial="english", choices=["english", "danish", "french"])
-g.show()
 
-# Set global task parameters herecd
-parameters = getParameters(
-    participant=g.data[0],
-    session=g.data[1],
-    serialPort=g.data[2],
-    setup=g.data[3],
-    device=g.data[4],
-    language=g.data[5],
-    stairType="psi",
-    catchTrials=0.0,
-    nTrials=60,
-    nInteroTrials=40,
-    nExteroTrials=20,
-    exteroception=True,
-)
+def _load_launcher():
+    repo_root = Path(__file__).resolve().parents[1]
+    launcher_path = repo_root / "scripts" / "run_hrd_nonin.py"
+    spec = importlib.util.spec_from_file_location("run_hrd_nonin", launcher_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load HRD launcher: {launcher_path}")
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+    return launcher
 
-# Run task
-run(parameters, confidenceRating=True, runTutorial=True)
 
-parameters["win"].close()
+if __name__ == "__main__":
+    raise SystemExit(_load_launcher().main())

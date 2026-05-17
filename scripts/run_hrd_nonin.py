@@ -64,37 +64,162 @@ def build_session_label(base_session: str, breathwork_phase_code: str) -> str:
     return f"{base_session}{breathwork_phase_code}"
 
 
+def prompt_run_details_dialog(
+    default_participant: Optional[str],
+    initial_phase: str,
+    error_message: Optional[str],
+) -> Optional[Tuple[str, str]]:
+    """Ask for startup fields using a lightweight Tk dialog."""
+    try:
+        import tkinter as tk
+        from tkinter import ttk
+    except Exception as exc:  # pragma: no cover - depends on local Python build
+        raise RuntimeError("tkinter is not available") from exc
+
+    phase_choices = [BREATHWORK_PHASES["1"][1], BREATHWORK_PHASES["2"][1]]
+    result: dict[str, object] = {"ok": False}
+
+    try:
+        root = tk.Tk()
+    except Exception as exc:  # pragma: no cover - depends on desktop session
+        raise RuntimeError("could not open the startup dialog") from exc
+
+    root.title("HRD setup")
+    root.resizable(False, False)
+    root.columnconfigure(1, weight=1)
+
+    padding = {"padx": 12, "pady": 6}
+
+    if error_message:
+        error_label = ttk.Label(root, text=error_message, foreground="red")
+        error_label.grid(row=0, column=0, columnspan=2, sticky="w", **padding)
+        row_offset = 1
+    else:
+        row_offset = 0
+
+    participant_label = ttk.Label(root, text="Participant ID:")
+    participant_label.grid(row=row_offset, column=0, sticky="w", **padding)
+    participant_var = tk.StringVar(value=default_participant or "")
+    participant_entry = ttk.Entry(root, textvariable=participant_var, width=28)
+    participant_entry.grid(row=row_offset, column=1, sticky="ew", **padding)
+
+    phase_label = ttk.Label(root, text="Breathwork timing:")
+    phase_label.grid(row=row_offset + 1, column=0, sticky="w", **padding)
+    phase_var = tk.StringVar(value=initial_phase)
+    phase_combo = ttk.Combobox(
+        root,
+        textvariable=phase_var,
+        values=phase_choices,
+        state="readonly",
+        width=25,
+    )
+    phase_combo.grid(row=row_offset + 1, column=1, sticky="ew", **padding)
+
+    button_frame = ttk.Frame(root)
+    button_frame.grid(row=row_offset + 2, column=0, columnspan=2, sticky="e", **padding)
+
+    def submit() -> None:
+        result["ok"] = True
+        result["participant"] = participant_var.get()
+        result["phase"] = phase_var.get()
+        root.destroy()
+
+    def cancel() -> None:
+        root.destroy()
+
+    ok_button = ttk.Button(button_frame, text="OK", command=submit)
+    ok_button.grid(row=0, column=0, padx=(0, 6))
+    cancel_button = ttk.Button(button_frame, text="Cancel", command=cancel)
+    cancel_button.grid(row=0, column=1)
+
+    root.bind("<Return>", lambda _event: submit())
+    root.bind("<Escape>", lambda _event: cancel())
+    root.protocol("WM_DELETE_WINDOW", cancel)
+
+    participant_entry.focus_set()
+    try:
+        root.attributes("-topmost", True)
+        root.after(500, lambda: root.attributes("-topmost", False))
+    except tk.TclError:
+        pass
+
+    root.mainloop()
+
+    if not result["ok"]:
+        return None
+    return str(result["participant"]), str(result["phase"])
+
+
+def prompt_run_details_console(
+    default_participant: Optional[str],
+    default_phase_code: Optional[str],
+    error_message: Optional[str],
+) -> Tuple[str, str]:
+    """Ask for startup fields in the command window."""
+    print("\nHRD setup")
+    if error_message:
+        print(f"Error: {error_message}")
+
+    participant_prompt = "Participant ID"
+    if default_participant:
+        participant_prompt += f" [{default_participant}]"
+    participant_prompt += ": "
+    participant = input(participant_prompt).strip()
+    if not participant and default_participant:
+        participant = default_participant
+
+    phase_default = default_phase_code or "1"
+    phase = input(
+        "Breathwork timing (1=before breathwork, 2=after breathwork) "
+        f"[{phase_default}]: "
+    ).strip()
+    if not phase:
+        phase = phase_default
+
+    return participant, phase
+
+
 def prompt_run_details(
     default_participant: Optional[str],
     default_phase_code: Optional[str],
 ) -> Tuple[str, str]:
     """Ask the RA for startup fields that should not require CLI entry."""
-    from psychopy import gui
-
-    phase_choices = [BREATHWORK_PHASES["1"][1], BREATHWORK_PHASES["2"][1]]
     initial_phase = BREATHWORK_PHASES.get(
         default_phase_code or "", BREATHWORK_PHASES["1"]
     )[1]
     error_message = None
+    use_dialog = True
 
     while True:
-        dialog = gui.Dlg(title="HRD setup")
-        if error_message:
-            dialog.addText(error_message)
-        dialog.addField("Participant ID:", initial=default_participant or "")
-        dialog.addField(
-            "Breathwork timing:",
-            choices=phase_choices,
-            initial=initial_phase,
-        )
-        data = dialog.show()
+        if use_dialog:
+            try:
+                data = prompt_run_details_dialog(
+                    default_participant,
+                    initial_phase,
+                    error_message,
+                )
+            except RuntimeError as exc:
+                print(
+                    "Could not open the startup dialog; using command-line prompts.",
+                    file=sys.stderr,
+                )
+                print(f"Dialog error: {exc}", file=sys.stderr)
+                use_dialog = False
+                continue
+        else:
+            data = prompt_run_details_console(
+                default_participant,
+                default_phase_code,
+                error_message,
+            )
 
-        if not dialog.OK:
+        if data is None:
             raise SystemExit("HRD setup cancelled\n")
 
         default_participant = str(data[0]).strip()
         try:
-            initial_phase = BREATHWORK_PHASES[normalize_breathwork_phase(data[1])][1]
+            default_phase_code = normalize_breathwork_phase(data[1])
+            initial_phase = BREATHWORK_PHASES[default_phase_code][1]
         except ValueError:
             pass
 

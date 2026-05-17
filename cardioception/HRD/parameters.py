@@ -482,19 +482,31 @@ def getParameters(
     ##############
     if language == "english":
         parameters["texts"] = english(
-            device=device, setup=setup, exteroception=exteroception
+            device=device,
+            setup=setup,
+            exteroception=exteroception,
+            mouse_response_buttons=mouse_response_buttons,
         )
     elif language == "danish":
         parameters["texts"] = danish(
-            device=device, setup=setup, exteroception=exteroception
+            device=device,
+            setup=setup,
+            exteroception=exteroception,
+            mouse_response_buttons=mouse_response_buttons,
         )
     elif language == "danish_children":
         parameters["texts"] = danish_children(
-            device=device, setup=setup, exteroception=exteroception
+            device=device,
+            setup=setup,
+            exteroception=exteroception,
+            mouse_response_buttons=mouse_response_buttons,
         )
     elif language == "french":
         parameters["texts"] = french(
-            device=device, setup=setup, exteroception=exteroception
+            device=device,
+            setup=setup,
+            exteroception=exteroception,
+            mouse_response_buttons=mouse_response_buttons,
         )
 
     # Open window

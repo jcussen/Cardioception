@@ -108,6 +108,8 @@ Use:
 - `2 - After breathwork` for the post-breathwork HRD task
 
 The participant ID and breathwork timing must be correct before the task starts.
+If the popup cannot open on a lab computer, the launcher falls back to asking
+for the same fields in the command window.
 
 ## Output Files
 
