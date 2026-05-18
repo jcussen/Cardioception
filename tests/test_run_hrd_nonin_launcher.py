@@ -79,6 +79,15 @@ class TestRunHrdNoninLauncher(TestCase):
         with self.assertRaises(ValueError):
             self.launcher.validate_participant_id("P/001")
 
+    def test_audio_dependency_message_includes_windows_repair_command(self):
+        message = self.launcher.audio_dependency_message(
+            OSError("cannot load library 'libsndfile.dll'")
+        )
+
+        self.assertIn("PsychoPy audio dependency problem", message)
+        self.assertIn("libsndfile", message)
+        self.assertIn("python-soundfile", message)
+
     def test_hrd_wrapper_imports_without_psychopy_gui(self):
         repo_root = Path(__file__).resolve().parents[1]
         wrapper_path = repo_root / "wrappers" / "hrd.py"

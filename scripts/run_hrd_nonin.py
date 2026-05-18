@@ -37,6 +37,10 @@ class NoninConnectionError(RuntimeError):
     """Raised when the Nonin pulse oximeter cannot be found or opened."""
 
 
+class AudioDependencyError(RuntimeError):
+    """Raised when PsychoPy audio dependencies are missing or broken."""
+
+
 def validate_participant_id(value: object) -> str:
     participant = "" if value is None else str(value).strip()
     if not participant:
@@ -262,8 +266,11 @@ def resolve_run_details(args: argparse.Namespace) -> Tuple[str, str, str, str]:
 
 def configure_audio_backend(backend: str) -> None:
     """Force a PsychoPy audio backend with explicit dependency checks."""
-    from psychopy import prefs
-    from psychopy.sound import Sound as PsychoPySound
+    try:
+        from psychopy import prefs
+        from psychopy.sound import Sound as PsychoPySound
+    except Exception as exc:
+        raise AudioDependencyError(audio_dependency_message(exc)) from exc
 
     if backend == "pygame":
         if importlib.util.find_spec("pygame") is None:
@@ -284,6 +291,26 @@ def configure_audio_backend(backend: str) -> None:
     else:
         raise ValueError("audio backend must be 'pygame' or 'ptb'")
     print(f"Using PsychoPy audio backend: {PsychoPySound.backend}")
+
+
+def audio_dependency_message(exc: BaseException) -> str:
+    lines = [
+        "",
+        "PsychoPy audio dependency problem",
+        "---------------------------------",
+        "PsychoPy could not load its sound backend.",
+        "",
+        f"Underlying error: {exc}",
+        "",
+        "On Windows, repair the existing environment from Anaconda Prompt or "
+        "Miniforge Prompt in the repository root:",
+        "  conda install --prefix .\\conda-envs\\cardioception-nonin "
+        '-c conda-forge libsndfile python-soundfile "pandas>=2.2.3" '
+        "requests tqdm",
+        "",
+        "Then rerun Run_HRD.bat.",
+    ]
+    return "\n".join(lines)
 
 
 def list_serial_ports() -> list[tuple[str, str]]:
@@ -652,6 +679,8 @@ def main() -> int:
     try:
         configure_audio_backend(args.audio_backend)
         serial_port = detect_nonin_port(args.serial_port)
+    except AudioDependencyError as exc:
+        parser.exit(2, f"{exc}\n")
     except NoninConnectionError as exc:
         parser.exit(2, f"{exc}\n")
 

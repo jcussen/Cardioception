@@ -49,6 +49,7 @@ conda env create --prefix .\conda-envs\cardioception-nonin -f environment_nonin.
 conda run --prefix .\conda-envs\cardioception-nonin python -m pip install "psychopy==2025.2.4"
 conda run --prefix .\conda-envs\cardioception-nonin python -m pip install "systole==0.3.1" --no-deps
 conda run --prefix .\conda-envs\cardioception-nonin python -m pip install -e . --no-deps
+conda run --prefix .\conda-envs\cardioception-nonin python scripts\check_nonin_env.py
 ```
 
 ## Run By Double-Clicking
@@ -244,6 +245,18 @@ python scripts/run_hrd_nonin.py --help
 
 If the launcher says it cannot find the Python environment, install the
 environment first using the instructions above.
+
+If startup stops with `libsndfile.dll`, `_soundfile_data`, or `soundfile`
+errors, the existing environment is missing PsychoPy's native audio dependency.
+From Anaconda Prompt or Miniforge Prompt in the repository root, run:
+
+```bat
+conda install --prefix .\conda-envs\cardioception-nonin -c conda-forge libsndfile python-soundfile "pandas>=2.2.3" requests tqdm
+```
+
+The double-click launchers run `scripts\check_nonin_env.py` before starting the
+task, so missing Python packages or native audio libraries should be reported
+before the task window opens.
 
 If data already exists for the same participant and session, the task stops to
 avoid overwriting data. Use the correct breathwork timing, or use a unique

@@ -21,9 +21,11 @@ echo "Installing pygame audio backend..."
 conda install --yes --prefix "$ENV_PREFIX" -c conda-forge pygame
 
 echo "Ensuring PsychoPy audio backend dependencies are installed..."
-if ! conda run --prefix "$ENV_PREFIX" python -c "import sounddevice" >/dev/null 2>&1; then
+if ! conda run --prefix "$ENV_PREFIX" python -c "import sounddevice, soundfile" >/dev/null 2>&1; then
   conda install --yes --prefix "$ENV_PREFIX" -c conda-forge \
+    libsndfile \
     portaudio \
+    python-soundfile \
     python-sounddevice
 fi
 
@@ -36,8 +38,11 @@ conda run --prefix "$ENV_PREFIX" python -m pip install \
   "bokeh>=3.0.0" \
   "numba>=0.61.0" \
   "joblib>=1.3.2" \
+  "pandas>=2.2.3" \
+  "requests>=2.26.0" \
   "sleepecg>=0.5.1" \
   "tabulate>=0.8.9" \
+  "tqdm" \
   "watermark>=2.5.0"
 
 echo "Installing Cardioception HRD in editable mode..."
