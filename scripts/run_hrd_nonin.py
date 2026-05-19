@@ -304,8 +304,8 @@ def audio_dependency_message(exc: BaseException) -> str:
         "",
         "On Windows, repair the existing environment from Anaconda Prompt or "
         "Miniforge Prompt in the repository root:",
-        "  conda install --prefix .\\conda-envs\\cardioception-nonin "
-        '-c conda-forge libsndfile python-soundfile "pandas>=2.2.3" '
+        "  conda install --prefix .\\conda-envs\\cardioception-hrd "
+        '-c conda-forge libsndfile pysoundfile "pandas>=2.2.3" '
         "requests tqdm",
         "",
         "Then rerun Run_HRD.bat.",

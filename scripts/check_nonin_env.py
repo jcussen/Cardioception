@@ -70,13 +70,14 @@ def main() -> int:
         print("")
         print("From Anaconda Prompt or Miniforge Prompt in the repository root, try:")
         print(
-            "  conda install --prefix .\\conda-envs\\cardioception-nonin "
-            '-c conda-forge libsndfile python-soundfile "pandas>=2.2.3" '
+            "  conda install --prefix .\\conda-envs\\cardioception-hrd "
+            '-c conda-forge libsndfile pysoundfile "pandas>=2.2.3" '
             "requests tqdm"
         )
         print("")
-        print("If that does not fix it, delete conda-envs\\cardioception-nonin and")
-        print("recreate the environment from README.md.")
+        print("If that does not fix it, delete conda-envs\\cardioception-hrd and")
+        print("recreate the environment with scripts\\setup_cardioception_env.bat")
+        print("or ./scripts/setup_cardioception_env.sh.")
         return 1
 
     print("Cardioception environment check passed.")

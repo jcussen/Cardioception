@@ -19,25 +19,27 @@ or from the command line when troubleshooting.
 
 ## Install The Environment
 
-The environment is installed inside the repository at:
+The task uses one repo-local Conda environment:
 
 ```text
-conda-envs/cardioception-nonin
+conda-envs/cardioception-hrd
 ```
+
+Set it up once on each computer.
 
 ### macOS
 
 Open Terminal in the repository root and run:
 
 ```bash
-./scripts/setup_conda_nonin.sh
+./scripts/setup_cardioception_env.sh
 ```
 
 If macOS says the setup script is not executable, run:
 
 ```bash
-chmod +x scripts/setup_conda_nonin.sh
-./scripts/setup_conda_nonin.sh
+chmod +x scripts/setup_cardioception_env.sh
+./scripts/setup_cardioception_env.sh
 ```
 
 ### Windows
@@ -45,12 +47,11 @@ chmod +x scripts/setup_conda_nonin.sh
 Open Anaconda Prompt or Miniforge Prompt in the repository root and run:
 
 ```bat
-conda env create --prefix .\conda-envs\cardioception-nonin -f environment_nonin.yml
-conda run --prefix .\conda-envs\cardioception-nonin python -m pip install "psychopy==2025.2.4"
-conda run --prefix .\conda-envs\cardioception-nonin python -m pip install "systole==0.3.1" --no-deps
-conda run --prefix .\conda-envs\cardioception-nonin python -m pip install -e . --no-deps
-conda run --prefix .\conda-envs\cardioception-nonin python scripts\check_nonin_env.py
+scripts\setup_cardioception_env.bat
 ```
+
+The setup script creates the environment, installs the task, and checks that the
+required packages can load.
 
 ## Run By Double-Clicking
 
@@ -149,13 +150,13 @@ non-default settings.
 macOS:
 
 ```bash
-conda activate ./conda-envs/cardioception-nonin
+conda activate ./conda-envs/cardioception-hrd
 ```
 
 Windows:
 
 ```bat
-conda activate .\conda-envs\cardioception-nonin
+conda activate .\conda-envs\cardioception-hrd
 ```
 
 ### Basic Run
@@ -246,12 +247,29 @@ python scripts/run_hrd_nonin.py --help
 If the launcher says it cannot find the Python environment, install the
 environment first using the instructions above.
 
+If setup partly failed or the environment seems broken, delete the environment
+folder and run the setup script again.
+
+macOS:
+
+```bash
+rm -rf conda-envs/cardioception-hrd
+./scripts/setup_cardioception_env.sh
+```
+
+Windows:
+
+```bat
+rmdir /s /q conda-envs\cardioception-hrd
+scripts\setup_cardioception_env.bat
+```
+
 If startup stops with `libsndfile.dll`, `_soundfile_data`, or `soundfile`
 errors, the existing environment is missing PsychoPy's native audio dependency.
 From Anaconda Prompt or Miniforge Prompt in the repository root, run:
 
 ```bat
-conda install --prefix .\conda-envs\cardioception-nonin -c conda-forge libsndfile python-soundfile "pandas>=2.2.3" requests tqdm
+conda install --prefix .\conda-envs\cardioception-hrd -c conda-forge libsndfile pysoundfile "pandas>=2.2.3" requests tqdm
 ```
 
 The double-click launchers run `scripts\check_nonin_env.py` before starting the

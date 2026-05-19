@@ -86,7 +86,7 @@ class TestRunHrdNoninLauncher(TestCase):
 
         self.assertIn("PsychoPy audio dependency problem", message)
         self.assertIn("libsndfile", message)
-        self.assertIn("python-soundfile", message)
+        self.assertIn("pysoundfile", message)
 
     def test_hrd_wrapper_imports_without_psychopy_gui(self):
         repo_root = Path(__file__).resolve().parents[1]
