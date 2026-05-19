@@ -1,0 +1,564 @@
+# Authors: Nicolas Legrand and Micah Allen, 2019-2022. Contact: micah@cfin.au.dk
+# Maintained by the Embodied Computation Group, Aarhus University
+
+import os
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import numpy as np
+import pandas as pd
+import serial
+from systole import serialSim
+from systole.recording import Oximeter, Nonin3231USB
+
+from cardioception.HRD.languages import danish, danish_children, english, french
+
+
+def getParameters(
+    participant: str = "SubjectTest",
+    session: str = "001",
+    serialPort: str = "COM3",
+    setup: str = "behavioral",
+    stairType: str = "psi",
+    exteroception: bool = True,
+    catchTrials: float = 0.0,
+    nTrials: int = 60,
+    nInteroTrials: Optional[int] = None,
+    nExteroTrials: Optional[int] = None,
+    device: str = "mouse",
+    screenNb: int = 0,
+    fullscr: bool = True,
+    nBreaking: int = 20,
+    resultPath: Optional[str] = None,
+    language: str = "english",
+    systole_kw: Optional[dict] = None,
+    mouse_response_buttons: Optional[dict] = None,
+):
+    """Create Heart Rate Discrimination task parameters.
+
+    Many task parameters, aesthetics, and options are controlled by the
+    parameters dictonary defined herein. These are intended to provide
+    flexibility and modularity to task. In many cases, unique versions of the
+    task (e.g., with or without confidence ratings or choice feedback) can be
+    created simply by changing these parameters, with no further interaction
+    with the underlying task code.
+
+    Parameters
+    ----------
+    device : str
+        Select how the participant provide responses. Can be `'mouse'` or `'keyboard'`.
+    exteroception : bool
+        If `True`, the task will include an exteroceptive condition. The default
+        task uses 40 interoceptive and 20 exteroceptive trials. Other `nTrials`
+        values are split evenly unless explicit modality counts are provided.
+    fullscr : bool
+        If `True`, activate full screen mode.
+    language : str
+        The language used for the instruction. Can be `"english"`, `"danish"` or
+        `"danish_children"` (a slightly simplified danish version), or `"french"`.
+    nBreaking : int
+        Number of trials to run before the break.
+    nStaircase : int
+        Number of staircase to use per condition (exteroceptive and
+        interoceptive).
+    nTrials : int
+        The number of trials to run (UpDown and psi staircase).
+        .. note::
+           This number indicates the total number of trials that will be presented
+           during the experiment. If `nTrials=50` and `exteroception=False`, the task
+           contains 50 interoceptive trials. If `nTrials=50` and `exteroception=True`,
+           the task contains 25 interoceptive trials and 25 exteroceptive trials.
+           The default `nTrials=60` uses 40 interoceptive and 20 exteroceptive
+           trials. To use another unequal split, pass `nInteroTrials` and
+           `nExteroTrials`.
+    nInteroTrials, nExteroTrials : int | None
+        Optional explicit trial counts for the interoceptive and exteroceptive
+        modalities. When both are provided and `exteroception=True`, `nTrials`
+        is set to their sum. When `exteroception=False`, `nInteroTrials` can be
+        used to override `nTrials` and `nExteroTrials` must be omitted or zero.
+    participant : str
+        Subject ID. Default is 'Participant'.
+    catchTrials : float
+        Ratio of Psi trials allocated to extreme values (+20 or -20 bpm with some
+        jitter) to control for range of stimuli presented. Default to `0.0` (no catch
+        trials). If not `0.0`, recomended value is `0.2`.
+    resultPath : str | None
+        Where to save the results.
+    screenNb : int
+        Screen number. Used to parametrize py:func:`psychopy.visual.Window`. Defaults
+        to `0`.
+    serialPort: str
+        The USB port where the pulse oximeter is plugged. Should be written as a string
+        e.g. `"COM3"` for USB ports on Windows.
+    session : int
+        Session number. Default to '001'.
+    setup : str
+        Context of oximeter recording. `"ehavioral"` will record through a Nonin
+        pulse oximeter and `"test"` will use pre-recorded pulse time series (for
+        testing only).
+    stairType : str
+        Staircase type. Can be "psi" or "updown". Default set to "psi".
+    systole_kw : dict
+        Additional keyword arguments for :py:class:`systole.recorder.Oxmeter`.
+    mouse_response_buttons : dict | None
+        Optional mapping for mouse responses. Must define `"More"` and `"Less"`
+        with values in `{"left", "middle", "right"}`.
+
+    Attributes
+    ----------
+    allowedKeys : list of str
+        The possible response keys.
+    confScale : list
+        The range of the confidence rating scale.
+    device : str
+        The device used for response and rating scale. Can be `"keyboard"` or
+        `"mouse"`.
+    HRcutOff : list
+        Cut off for extreme heart rate values during recording.
+    ExteroCondition : bool
+        If `True`, the task includes an exteroceptive condition.
+    isi : tuple
+        Range of the inter-stimulus interval (seconds). Should be in the form of (low,
+        high). At each trial the value is generated using a uniform distribution
+        between these two values. Default is set to `(0.25, 0.25)` so the value is
+        fixed at `0.25`.
+    labelsRating : list
+        The labels of the confidence rating scale.
+    lambdaExtero : np.ndarray
+        (3d) Posterior estimate of the psychophysics function parameters (slope and
+        threshold) across trials for the exteroceptive condition.
+    lambdaIntero : np.ndarray
+        (3d) Posterior estimate of the psychophysics function parameters (slope and
+        threshold) across trials for the interoceptive condition.
+    listenLogo, heartLogo : Psychopy visual instance
+        Image used for the inference and recording phases, respectively.
+    maxRatingTime : float
+        The maximum time for a confidence rating (in seconds).
+    minRatingTime : float
+        The minimum time before a rating can be provided during the confidence
+        rating (in seconds).
+    monitor : str
+        The monitor used to present the task (Psychopy parameter).
+    nBreaking : int
+        Number of trials to run before the break.
+    nPractice : int
+        The number of practice repetitions per modality during the tutorial.
+    nFinger : str or None
+        The finger number ("1", "2", "3", "4" or "5") where the participant
+        decided to place the pulse oximeter (if relevant).
+    nTrials : int
+        The number of trials to run (UpDown and psi staircase).
+        .. note::
+           This number indicates the total number of trials that will be presented
+           during the experiment. If `nTrials=50` and `exteroception=False`, the task
+           contains 50 interoceptive trials. If `nTrials=50` and `exteroception=True`,
+           the task contains 25 interoceptive trials and 25 exteroceptive trials.
+           The default `nTrials=60` uses 40 interoceptive and 20 exteroceptive
+           trials. To use another unequal split, pass `nInteroTrials` and
+           `nExteroTrials`.
+    participant : str
+        Subject ID. Default is 'Participant'.
+    path : str
+        The task working directory.
+    resultPath : str | None
+        Where to save the results.
+    serial : PySerial instance
+        The serial port used to record the PPG activity.
+    screenNb : int
+        The screen number (Psychopy parameter). Default set to 0.
+    signal_df : pandas.DataFrame instance
+        Dataframe where the pulse signal recorded during the interoception
+        condition will be stored.
+    stairCase : dict
+        The staircase instances for 'psi' and 'UpDown'. Each entry contain
+        dictionary for 'Intero' and 'Extero conditions' (if relevant).
+    staircaseType : 1d array-like
+        Vector indexing stairce type (`'UpDown'`, `'psi'`, `'psiCatchTrial'`).
+    startKey : str
+        The key to press to start the task and go to next steps.
+    response_keys : dict
+        Mapping from trial conditions to keyboard response keys.
+    mouse_response_buttons : dict
+        Mapping from trial conditions to mouse buttons.
+    respMax : float
+        The maximum time for decision (in seconds).
+    results : str
+        The result directory.
+    session : int
+        Session number. Default to '001'.
+    setup : str
+        The context of recording. Can be `'behavioral'` or `'test'`.
+    texts : dict
+        Long text elements.
+    textSize : float
+        Scalling parameter for text size.
+    triggers : dict
+        Dictionary {str, callable or None}. The function will be executed
+        before the corresponding trial sequence. The default values are
+        `None` (no trigger sent).
+        * `"trialStart"`
+        * `"trialStop"`
+        * `"listeningStart"`
+        * `"listeningStop"`
+        * `"decisionStart"`
+        * `"decisionStop"`
+        * `"confidenceStart"`
+        * `"confidenceStop"`
+    win : `psychopy.visual.window`
+        The window in which to draw objects.
+
+    Notes
+    -----
+    When using the `behavioral` setup, triggers will be sent to the PPG  recording. The
+    trigger channel is coding for different events during the task as follows:
+    - Trial start: 1
+    - recording trigger: 2
+    - sound trigger : 3
+    - rating trigger: 4
+    - end trigger: 5
+    All these events, except trial start, have also their time stamps encoded in the
+    behavioral results data frame.
+
+    """
+    from psychopy import data, event, visual
+
+    if systole_kw is None:
+        systole_kw = {}
+    if mouse_response_buttons is None:
+        mouse_response_buttons = {"Less": "left", "More": "right"}
+    mouse_response_buttons = {
+        key: str(value).lower() for key, value in mouse_response_buttons.items()
+    }
+    valid_buttons = {"left", "middle", "right"}
+    required_keys = {"Less", "More"}
+    if set(mouse_response_buttons.keys()) != required_keys:
+        raise ValueError("mouse_response_buttons must define exactly {'Less', 'More'}")
+    if any(button not in valid_buttons for button in mouse_response_buttons.values()):
+        raise ValueError("mouse_response_buttons values must be left, middle, or right")
+    if mouse_response_buttons["Less"] == mouse_response_buttons["More"]:
+        raise ValueError("mouse_response_buttons values for Less and More must differ")
+
+    module_dir = Path(__file__).resolve().parent
+    images_dir = module_dir / "Images"
+
+    parameters: Dict[str, Any] = {}
+    parameters["ExteroCondition"] = exteroception
+    parameters["device"] = device
+    parameters["labelsRating"] = ["Guess", "Certain"]
+    parameters["screenNb"] = screenNb
+    parameters["monitor"] = "testMonitor"
+    parameters["nPractice"] = 1
+    parameters["nFeedback"] = 1
+    parameters["nConfidence"] = 1
+    parameters["respMax"] = 5
+    parameters["minRatingTime"] = 0.5
+    parameters["maxRatingTime"] = 5
+    parameters["isi"] = (0.25, 0.25)
+    parameters["startKey"] = "space"
+    parameters["response_keys"] = {"More": "up", "Less": "down"}
+    parameters["allowedKeys"] = list(parameters["response_keys"].values())
+    parameters["mouse_response_buttons"] = mouse_response_buttons
+    parameters["nBreaking"] = nBreaking
+    parameters["lambdaIntero"] = []  # Save the history of lambda values
+    parameters["lambdaExtero"] = []  # Save the history of lambda values
+    parameters["nFinger"] = None
+    parameters["signal_df"] = pd.DataFrame([])  # Physiological recording
+    parameters["results_df"] = pd.DataFrame([])  # Behavioral results
+
+    # Set default path /Results/ 'Subject ID' /
+    parameters["participant"] = participant
+    parameters["session"] = session
+    parameters["path"] = os.getcwd()
+    if resultPath is None:
+        parameters["resultPath"] = parameters["path"] + "/data/" + participant + session
+    else:
+        parameters["resultPath"] = resultPath
+    # Create Results directory if not already exists
+    if not os.path.exists(parameters["resultPath"]):
+        os.makedirs(parameters["resultPath"])
+
+    if exteroception is True:
+        if (nInteroTrials is None) and (nExteroTrials is None):
+            if nTrials == 60:
+                nInteroTrials = 40
+                nExteroTrials = 20
+            elif nTrials % 2 != 0:
+                raise ValueError(
+                    "nTrials must be even when exteroception=True unless "
+                    "nInteroTrials and nExteroTrials are provided"
+                )
+            else:
+                nInteroTrials = int(nTrials / 2)
+                nExteroTrials = int(nTrials / 2)
+        elif (nInteroTrials is None) or (nExteroTrials is None):
+            raise ValueError(
+                "nInteroTrials and nExteroTrials must both be provided for an "
+                "unequal exteroceptive split"
+            )
+        nInteroTrials = int(nInteroTrials)
+        nExteroTrials = int(nExteroTrials)
+        if nInteroTrials < 1 or nExteroTrials < 1:
+            raise ValueError("nInteroTrials and nExteroTrials must be positive")
+        nTrials = nInteroTrials + nExteroTrials
+    elif exteroception is False:
+        if nExteroTrials not in (None, 0):
+            raise ValueError(
+                "nExteroTrials must be omitted or zero when exteroception=False"
+            )
+        nInteroTrials = int(nTrials if nInteroTrials is None else nInteroTrials)
+        nExteroTrials = 0
+        if nInteroTrials < 1:
+            raise ValueError("nInteroTrials must be positive")
+        nTrials = nInteroTrials
+    else:
+        raise ValueError("exteroception should be a boolean")
+
+    parameters["nTrials"] = nTrials
+    parameters["nInteroTrials"] = nInteroTrials
+    parameters["nExteroTrials"] = nExteroTrials
+
+    # Store posterior in a dictionary
+    parameters["staircaisePosteriors"] = {}
+    parameters["staircaisePosteriors"]["Intero"] = []
+    if exteroception is True:
+        parameters["staircaisePosteriors"]["Extero"] = []
+
+    nCatch = int(parameters["nTrials"] * catchTrials)
+    nStaircase = parameters["nTrials"] - nCatch
+
+    # Vector encoding the staircase type
+    if stairType == "psi":
+        sc = np.array(["psi"] * nStaircase)
+    elif stairType == "updown":
+        sc = np.array(["updown"] * nStaircase)
+    else:
+        raise ValueError("stairType should be 'psi' or 'updown'")
+
+    # Create and randomize condition vectors separately for each staircase
+    if exteroception is True:
+        # Create a modality vector containing the requested Intero and Extero counts.
+        parameters["Modality"] = np.hstack(
+            [
+                np.array(["Intero"] * parameters["nInteroTrials"]),
+                np.array(["Extero"] * parameters["nExteroTrials"]),
+            ]
+        )
+    elif exteroception is False:
+        # Create a modality vector containing Intero conditions only.
+        parameters["Modality"] = np.array(["Intero"] * int(parameters["nTrials"]))
+
+    # Vector encoding the type of trial (psi, up/down or catch)
+    parameters["staircaseType"] = np.hstack(
+        [
+            sc,
+            np.array(["CatchTrial"] * int((parameters["nTrials"] * catchTrials))),
+        ]
+    )
+
+    # Shuffle all trials
+    shuffler = np.random.permutation(parameters["nTrials"])
+    parameters["Modality"] = parameters["Modality"][shuffler]
+    parameters["staircaseType"] = parameters["staircaseType"][shuffler]
+
+    # Default parameters for the basic staircase are set here. Please see
+    # PsychoPy Staircase Handler Documentation for full options. By default,
+    # the task implements a staircase using Psi method.
+    # If UpDown is selected, 1 or 2 interleaved staircases are used (see
+    # options in parameters dictionary), one is initalized 'high' and the other
+    # 'low'.
+    parameters["stairCase"] = {}
+
+    if stairType == "updown":
+
+        conditions = [
+            {
+                "label": "low",
+                "startVal": -40.5,
+                "nUp": 1,
+                "nDown": 1,
+                "stepSizes": [20, 12, 12, 7, 4, 3, 2, 1],
+                "stepType": "lin",
+                "minVal": -40.5,
+                "maxVal": 40.5,
+            },
+            {
+                "label": "high",
+                "startVal": 40.5,
+                "nUp": 1,
+                "nDown": 1,
+                "stepSizes": [20, 12, 12, 7, 4, 3, 2, 1],
+                "stepType": "lin",
+                "minVal": -40.5,
+                "maxVal": 40.5,
+            },
+        ]
+        parameters["stairCase"]["Intero"] = data.MultiStairHandler(
+            conditions=conditions, nTrials=parameters["nTrials"]
+        )
+
+    elif stairType == "psi":
+
+        parameters["stairCase"]["Intero"] = data.PsiHandler(
+            nTrials=nTrials,
+            intensRange=[-50.5, 50.5],
+            alphaRange=[-50.5, 50.5],
+            betaRange=[0.1, 25],
+            intensPrecision=1,
+            alphaPrecision=1,
+            betaPrecision=0.1,
+            delta=0.02,
+            stepType="lin",
+            expectedMin=0,
+        )
+
+    if exteroception is True:
+        if stairType == "updown":
+
+            conditions = [
+                {
+                    "label": "low",
+                    "startVal": -40.5,
+                    "nUp": 1,
+                    "nDown": 1,
+                    "stepSizes": [20, 12, 12, 7, 4, 3, 2, 1],
+                    "stepType": "lin",
+                    "minVal": -40.5,
+                    "maxVal": 40.5,
+                },
+                {
+                    "label": "high",
+                    "startVal": 40.5,
+                    "nUp": 1,
+                    "nDown": 1,
+                    "stepSizes": [20, 12, 12, 7, 4, 3, 2, 1],
+                    "stepType": "lin",
+                    "minVal": -40.5,
+                    "maxVal": 40.5,
+                },
+            ]
+            parameters["stairCase"]["Extero"] = data.MultiStairHandler(
+                conditions=conditions, nTrials=parameters["nTrials"]
+            )
+
+        elif stairType == "psi":
+
+            parameters["stairCase"]["Extero"] = data.PsiHandler(
+                nTrials=nTrials,
+                intensRange=[-50.5, 50.5],
+                alphaRange=[-50.5, 50.5],
+                betaRange=[0.1, 25],
+                intensPrecision=1,
+                alphaPrecision=1,
+                betaPrecision=0.1,
+                delta=0.02,
+                stepType="lin",
+                expectedMin=0,
+            )
+
+    parameters["setup"] = setup
+    if setup == "behavioral":
+        # PPG recording
+        port = serial.Serial(serialPort, timeout=2)
+        # parameters["oxiTask"] = Oximeter(
+        #     serial=port, sfreq=75, add_channels=1, **systole_kw
+        # )
+        # parameters["oxiTask"].setup().read(duration=1)
+        
+        # for Nonin 3231 USB
+        parameters["oxiTask"] = (
+            Nonin3231USB(serial=port, add_channels=1).setup().read(duration=1)
+        )
+
+    elif setup == "test":
+        # Use pre-recorded pulse time series for testing
+        port = serialSim()
+        parameters["oxiTask"] = Oximeter(
+            serial=port, sfreq=75, add_channels=1, **systole_kw
+        )
+        parameters["oxiTask"].setup().read(duration=1)
+
+    ##############
+    # Load texts #
+    ##############
+    if language == "english":
+        parameters["texts"] = english(
+            device=device,
+            setup=setup,
+            exteroception=exteroception,
+            mouse_response_buttons=mouse_response_buttons,
+        )
+    elif language == "danish":
+        parameters["texts"] = danish(
+            device=device,
+            setup=setup,
+            exteroception=exteroception,
+            mouse_response_buttons=mouse_response_buttons,
+        )
+    elif language == "danish_children":
+        parameters["texts"] = danish_children(
+            device=device,
+            setup=setup,
+            exteroception=exteroception,
+            mouse_response_buttons=mouse_response_buttons,
+        )
+    elif language == "french":
+        parameters["texts"] = french(
+            device=device,
+            setup=setup,
+            exteroception=exteroception,
+            mouse_response_buttons=mouse_response_buttons,
+        )
+
+    # Open window
+    if parameters["setup"] == "test":
+        fullscr = False
+    parameters["win"] = visual.Window(
+        monitor=parameters["monitor"],
+        screen=parameters["screenNb"],
+        fullscr=fullscr,
+        units="height",
+    )
+    parameters["win"].mouseVisible = parameters["device"] == "mouse"
+
+    ###############
+    # Image loading
+    ###############
+    if parameters["setup"] in ["test", "behavioral"]:
+        parameters["pulseSchema"] = visual.ImageStim(
+            win=parameters["win"],
+            units="height",
+            image=str(images_dir / "pulseOximeter.png"),
+            pos=(0.0, 0.0),
+        )
+        parameters["pulseSchema"].size *= 0.2
+        parameters["handSchema"] = visual.ImageStim(
+            win=parameters["win"],
+            units="height",
+            image=str(images_dir / "hand.png"),
+            pos=(0.0, -0.08),
+        )
+        parameters["handSchema"].size *= 0.15
+
+    parameters["listenLogo"] = visual.ImageStim(
+        win=parameters["win"],
+        units="height",
+        image=str(images_dir / "listen.png"),
+        pos=(0.0, 0.0),
+    )
+    parameters["listenLogo"].size *= 0.08
+
+    parameters["heartLogo"] = visual.ImageStim(
+        win=parameters["win"],
+        units="height",
+        image=str(images_dir / "heartbeat.png"),
+        pos=(0.0, 0.0),
+    )
+    parameters["heartLogo"].size *= 0.04
+    parameters["textSize"] = 0.04
+    parameters["HRcutOff"] = [40, 120]
+    if parameters["device"] == "keyboard":
+        parameters["confScale"] = [1, 10]
+    elif parameters["device"] == "mouse":
+        parameters["myMouse"] = event.Mouse()
+
+    return parameters

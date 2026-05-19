@@ -1,0 +1,23 @@
+.ipynb_checkpoints
+<<<<<<< HEAD
+=======
+.idea/
+>>>>>>> nonin3231usb_updated
+*.pyc
+.mypy_cache
+.pytest_cache
+/htmlcov
+/dist
+/cardioception.egg-info
+/build
+docs/source/auto_examples
+docs/source/generated
+docs/source/api
+docs/build
+docs/auto_examples
+.Rproj.user
+<<<<<<< HEAD
+=======
+conda-envs/
+data/
+>>>>>>> nonin3231usb_updated

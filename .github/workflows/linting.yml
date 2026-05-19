@@ -1,0 +1,37 @@
+name: Linting
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+<<<<<<< HEAD
+        python-version: [3.8]
+=======
+        python-version: [3.11]
+>>>>>>> nonin3231usb_updated
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    - uses: actions/cache@v4
+      name: Configure pip caching
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    - name: Install dependencies
+      run: |
+        pip install isort flake8 black mypy
+        pip install types-setuptools
+    - name: Run tests and coverage
+      run: |
+        mypy ./cardioception/ --ignore-missing-imports
+        black ./cardioception/
+        isort ./cardioception/
+        flake8 ./cardioception/ --extend-ignore=E501
